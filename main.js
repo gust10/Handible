@@ -148,30 +148,30 @@ async function init() {
   sunLight.shadow.mapSize.height = 2048;
   scene.add(sunLight);
 
-  // // Create a group to hold interactive objects
-  // const objectsGroup = new THREE.Group();
-  // scene.add(objectsGroup);
+  // Create a group to hold interactive objects
+  const objectsGroup = new THREE.Group();
+  scene.add(objectsGroup);
 
-  // // Helper function to make a mesh
-  // function makeObject(geometry, color, x, y, z) {
-  //     const material = new THREE.MeshStandardMaterial({ color });
-  //     const mesh = new THREE.Mesh(geometry, material);
-  //     mesh.position.set(x, y, z);
-  //     mesh.castShadow = true;
-  //     mesh.receiveShadow = true;
-  //     objectsGroup.add(mesh);
-  //     return mesh;
-  // }
+  // Helper function to make a mesh
+  function makeObject(geometry, color, x, y, z) {
+      const material = new THREE.MeshStandardMaterial({ color });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      objectsGroup.add(mesh);
+      return mesh;
+  }
 
-  // // Add some cubes
-  // makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0xff0000, -1, 0, -1);
-  // makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x00ff00, 1, 0, -1);
-  // makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x0000ff, 0, 0.5, 1);
+  // Add some cubes
+  makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0xff0000, -1, 0, -1);
+  makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x00ff00, 1, 0, -1);
+  makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x0000ff, 0, 0.5, 1);
 
-  // // Add some spheres
-  // makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xffff00, -0.5, 0.3, 0.5);
-  // makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xff00ff, 0.5, 0.3, -0.5);
-  // makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0x00ffff, 0, 1, 0);
+  // Add some spheres
+  makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xffff00, -0.5, 0.3, 0.5);
+  makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xff00ff, 0.5, 0.3, -0.5);
+  makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0x00ffff, 0, 1, 0);
 
   window.addEventListener("resize", onWindowResize);
 
