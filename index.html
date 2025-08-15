@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      3D Hand Tracking with MediaPipe & Three.js (Vanilla JS + Vite)
+    </title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="info">
+      `hand.glb`가 `public/` 폴더에 있는지 확인하고 로컬 Vite 개발 서버를 통해
+      실행하십시오.
+      <br />
+      EMA 스무딩: <span id="ema-alpha-display">0.3</span> (main.js에서 변경)
+    </div>
+    <div id="loading-message">모델을 로드하고 웹캠을 설정하는 중...</div>
+    <div id="fps-counter" class="fps-counter">FPS: 0</div>
+
+    <!-- MediaPipe 입력을 위한 숨겨진 비디오 요소 -->
+    <video id="webcamVideo" autoplay playsinline></video>
+
+    <!-- Three.js 렌더링을 위한 캔버스 -->
+    <canvas id="threeCanvas"></canvas>
+
+    <!-- 메인 JavaScript 애플리케이션 로직 -->
+    <!-- Vite는 'main.js'를 번들링하고 제공합니다. -->
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

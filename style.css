@@ -1,0 +1,91 @@
+/* 전체 페이지 캔버스 및 비디오의 기본 스타일링 */
+body {
+  margin: 0;
+  overflow: hidden; /* 스크롤바 숨기기 */
+  background-color: #1a1a1a;
+  font-family: "Inter", sans-serif;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+#info {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px 15px;
+  border-radius: 8px;
+  font-size: 0.9em;
+  color: #ccc;
+  z-index: 10;
+}
+
+#loading-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5em;
+  color: #fff;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+canvas {
+  display: block;
+  background-color: #2c2c2c; /* 3D 씬을 위한 더 어두운 배경 */
+  width: 100vw;
+  height: 100vh;
+}
+
+/* 웹캠 비디오를 오른쪽 하단에 표시하도록 수정 */
+#webcamVideo {
+  display: block; /* 숨기지 않고 표시 */
+  position: fixed; /* 뷰포트에 고정 */
+  bottom: 20px; /* 하단에서 20px 위로 */
+  right: 20px; /* 오른쪽에서 20px 왼쪽으로 */
+  width: 240px; /* 너비 조절 */
+  height: 180px; /* 높이 조절 (일반적인 4:3 비율) */
+  border-radius: 12px; /* 둥근 모서리 */
+  border: 2px solid #00ffff; /* 강조를 위한 테두리 */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); /* 그림자 효과 */
+  z-index: 100; /* 다른 요소 위에 오도록 z-index 높게 설정 */
+  transform: scaleX(
+    -1
+  ); /* 웹캠 피드 자체를 거울처럼 보이도록 X축을 뒤집습니다. (선택 사항) */
+}
+
+#fps-counter {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.6); /* 반투명 배경 */
+  padding: 8px 15px;
+  border-radius: 8px;
+  font-size: 1em;
+  color: #00ff00; /* 밝은 녹색 텍스트 */
+  font-weight: bold;
+  z-index: 10; /* 다른 요소 위에 표시 */
+}
+
+/* 모바일 화면을 위한 반응형 조정 */
+@media (max-width: 768px) {
+  #webcamVideo {
+    width: 160px;
+    height: 120px;
+    bottom: 10px;
+    right: 10px;
+  }
+  #info {
+    font-size: 0.8em;
+    padding: 6px 10px;
+  }
+  #loading-message {
+    font-size: 1.2em;
+  }
+}
