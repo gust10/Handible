@@ -4,6 +4,9 @@ import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@m
 import { setupThreeScene } from "./threeSetup.js";
 import { initHandLandmarker, startWebcam } from "./mediaPipeSetup.js";
 import { setupHandTracking } from "./handTracking.js";
+import { initGestureControl } from './gestureControl.js';
+
+
 
 let scene, camera, renderer;
 let video;
@@ -23,6 +26,7 @@ async function init() {
 
   // Setup hand tracking visualizations
   await setupHandTracking(scene);
+  initGestureControl(scene, 2); // Pass scene and NUM_HANDS_TO_DETECT
 
   document.getElementById("loading-message").style.display = "none";
   await startWebcam(video, handLandmarker);

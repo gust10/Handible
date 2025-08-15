@@ -1,9 +1,9 @@
 import * as THREE from "three";
-import { isPinching2D, onPinchStart, onPinchEnd } from "./gestureControl.js";
+import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPerHand, getConeVisualsPerHand, isPinchingState } from "./gestureControl.js";
 
 const NUM_HANDS_TO_DETECT = 2;
 const EMA_ALPHA = 0.35;
-const Z_MAGNIFICATION_FACTOR = 5;
+const Z_MAGNIFICATION_FACTOR = 2;
 const Z_OFFSET_FOR_DIRECT_DEPTH = 0;
 
 const HAND_CONNECTIONS = [
@@ -17,7 +17,6 @@ const HAND_CONNECTIONS = [
 const landmarkVisualsPerHand = [];
 const connectionVisualsPerHand = [];
 const smoothedLandmarksPerHand = [];
-const isPinchingState = Array(NUM_HANDS_TO_DETECT).fill(false);
 let lastVideoTime = -1;
 let results = undefined;
 let fpsCounterElement;
@@ -76,6 +75,7 @@ export function predictWebcam(video, handLandmarker) {
     lastFpsUpdateTime = currentTime;
   }
 
+  // Hide visuals for all hands by default
   for (let i = 0; i < NUM_HANDS_TO_DETECT; i++) {
     landmarkVisualsPerHand[i].forEach((sphere) => (sphere.visible = false));
     connectionVisualsPerHand[i].forEach((line) => (line.visible = false));
@@ -113,7 +113,6 @@ export function predictWebcam(video, handLandmarker) {
         const targetY = (rawLandmark.y - 0.5) * -2;
         const targetZ = rawLandmark.z * Z_MAGNIFICATION_FACTOR + Z_OFFSET_FOR_DIRECT_DEPTH;
         const currentPosition = new THREE.Vector3(targetX, targetY, targetZ);
-
         currentSmoothedLandmarks[i].lerp(currentPosition, EMA_ALPHA);
         currentLandmarkSpheres[i].position.copy(currentSmoothedLandmarks[i]);
       }
@@ -124,17 +123,37 @@ export function predictWebcam(video, handLandmarker) {
         const endLandmarkIndex = connection[1];
         const line = currentHandConnections[i];
         const positions = line.geometry.attributes.position.array;
-
         positions[0] = currentSmoothedLandmarks[startLandmarkIndex].x;
         positions[1] = currentSmoothedLandmarks[startLandmarkIndex].y;
         positions[2] = currentSmoothedLandmarks[startLandmarkIndex].z;
         positions[3] = currentSmoothedLandmarks[endLandmarkIndex].x;
         positions[4] = currentSmoothedLandmarks[endLandmarkIndex].y;
         positions[5] = currentSmoothedLandmarks[endLandmarkIndex].z;
-
         line.geometry.attributes.position.needsUpdate = true;
       }
+
+      // Update raycast for this hand
+      updateRaycast(handIndex);
     }
   }
+
+  // Hide rays for undetected hands
+  const rayVisuals = getRayVisualsPerHand();
+  for (let i = results && results.landmarks ? results.landmarks.length : 0; i < NUM_HANDS_TO_DETECT; i++) {
+    const rayLine = rayVisuals[i];
+    if (rayLine) rayLine.visible = false;
+  }
+
+  // Hide cones for undetected hands
+  const coneVisuals = getConeVisualsPerHand();
+  for (let i = results && results.landmarks ? results.landmarks.length : 0; i < NUM_HANDS_TO_DETECT; i++) {
+    const cone = coneVisuals[i];
+    if (cone) cone.visible = false;
+  }
+
   requestAnimationFrame(() => predictWebcam(video, handLandmarker));
+}
+
+export function getHandTrackingData() {
+  return { landmarkVisualsPerHand, connectionVisualsPerHand, smoothedLandmarksPerHand };
 }

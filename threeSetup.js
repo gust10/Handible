@@ -1,22 +1,43 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+let scene, camera, renderer, controls;
+
 export function setupThreeScene() {
-  const scene = new THREE.Scene();
+  scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
 
-  // Ground plane
-  const groundGeometry = new THREE.PlaneGeometry(100, 100);
-  const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0x228b22,
-    roughness: 0.8,
+  // Whiteboard wall (vertical plane)
+  const wallGeometry = new THREE.PlaneGeometry(5, 3); // Wider and taller for a whiteboard feel
+  const wallMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff, // White color for whiteboard
+    roughness: 0.2,
     metalness: 0.0
   });
-  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -1;
-  ground.receiveShadow = true;
-  scene.add(ground);
+  const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+  wall.position.z = -1; // Closer to the camera (was -2)
+  wall.receiveShadow = true;
+  wall.userData.isWall = true; // Identifier for raycasting and to prevent grabbing
+  scene.add(wall);
+
+  // Add buttons on the whiteboard
+  const buttonPositions = [
+    { x: -1, y: 0.5, color: 0xff0000 }, // Red button
+    { x: 0, y: 0.5, color: 0x00ff00 }, // Green button
+    { x: 1, y: 0.5, color: 0x0000ff } // Blue button
+  ];
+
+  buttonPositions.forEach(pos => {
+    const buttonGeometry = new THREE.CircleGeometry(0.2, 32); // Circular button
+    const buttonMaterial = new THREE.MeshStandardMaterial({ color: pos.color });
+    const button = new THREE.Mesh(buttonGeometry, buttonMaterial);
+    button.position.set(pos.x, pos.y, wall.position.z + 0.01); // Slightly in front of the wall
+    button.userData.isButton = true;
+    button.userData.defaultColor = pos.color;
+    button.userData.hoverColor = 0xffff00; // Yellow for hover
+    button.userData.activeColor = 0xffa500; // Orange for pinched
+    scene.add(button);
+  });
 
   // Hand ray visual
   const handRayMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
@@ -28,7 +49,7 @@ export function setupThreeScene() {
   scene.add(handRay);
   handRay.visible = false;
 
-  const camera = new THREE.PerspectiveCamera(
+  camera = new THREE.PerspectiveCamera(
     75,
     window.innerWidth / window.innerHeight,
     0.1,
@@ -37,13 +58,13 @@ export function setupThreeScene() {
   camera.position.z = 2;
 
   const canvas = document.getElementById("threeCanvas");
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  const controls = new OrbitControls(camera, renderer.domElement);
+  controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
   controls.enableZoom = true;
@@ -64,22 +85,7 @@ export function setupThreeScene() {
   const objectsGroup = new THREE.Group();
   scene.add(objectsGroup);
 
-  function makeObject(geometry, color, x, y, z) {
-    const material = new THREE.MeshStandardMaterial({ color });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    objectsGroup.add(mesh);
-    return mesh;
-  }
-
-  makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0xff0000, -1, 0, -1);
-  makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x00ff00, 1, 0, -1);
-  makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x0000ff, 0, 0.5, 1);
-  makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xffff00, -0.5, 0.3, 0.5);
-  makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xff00ff, 0.5, 0.3, -0.5);
-  makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0x00ffff, 0, 1, 0);
+  // Removed the cubes and spheres
 
   window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -87,5 +93,9 @@ export function setupThreeScene() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
+  return { scene, camera, renderer, controls };
+}
+
+export function getSceneObjects() {
   return { scene, camera, renderer, controls };
 }
