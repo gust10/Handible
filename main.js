@@ -1,5 +1,7 @@
 // Three.js 및 GLTFLoader 모듈 임포트
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
 
 // MediaPipe HandLandmarker는 CDN에서 계속 임포트합니다.
 import {
@@ -21,17 +23,29 @@ let fpsCounterElement;
 let frameCount = 0;
 let lastFpsUpdateTime = performance.now();
 
+// ----------------------------------------------
+// Pinching state (gesture control)
+let isPinchingState = Array(NUM_HANDS_TO_DETECT).fill(false);
+
+let raycaster = new THREE.Raycaster();
+let grabbedObject = null;
+
+// Debug purpose
+let controls;
+
+// ----------------------------------------------
+
 // 랜드마크 시각화 (두 손용)
 const landmarkVisualsPerHand = []; // 각 손에 대한 구체 배열: [[sphere0, ...], [sphere0, ...]]
 const connectionVisualsPerHand = []; // 각 손에 대한 선 배열: [[line0, ...], [line0, ...]]
 
 // --- 스무딩 매개변수 (지수 이동 평균 - EMA) ---
-const EMA_ALPHA = 0.65; // 조절 가능: 0에 가까울수록 부드럽지만 지연, 1에 가까울수록 반응적이지만 떨림
+const EMA_ALPHA = 0.35; // 조절 가능: 0에 가까울수록 부드럽지만 지연, 1에 가까울수록 반응적이지만 떨림
 const smoothedLandmarksPerHand = []; // 스무딩된 랜드마크 위치 저장: [[Vector3_0, ...], [Vector3_0, ...]]
 
 // --- 깊이(Z) 변환을 위한 매개변수 ---
 const Z_MAGNIFICATION_FACTOR = 5; // Z축 움직임의 민감도
-const Z_OFFSET_FOR_DIRECT_DEPTH = 0.5; // Z축 위치를 조정하여 손을 적절한 깊이 범위로 가져옴
+const Z_OFFSET_FOR_DIRECT_DEPTH = 0; // Z축 위치를 조정하여 손을 적절한 깊이 범위로 가져옴
 
 // 랜드마크 연결점 (MediaPipe 기준)
 const HAND_CONNECTIONS = [
@@ -68,7 +82,31 @@ async function init() {
 
   // 1. Three.js 씬 설정
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x2c2c2c);
+  scene.background = new THREE.Color(0x87ceeb); // Light blue sky
+
+  // Ground plane
+  const groundGeometry = new THREE.PlaneGeometry(100, 100);
+  const groundMaterial = new THREE.MeshStandardMaterial({
+    color: 0x228b22, // Forest green
+    roughness: 0.8,
+    metalness: 0.0
+  });
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+  ground.rotation.x = -Math.PI / 2; // Make it horizontal
+  ground.position.y = -1; // Slightly below origin
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Hand ray visual
+  const handRayMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
+  const handRayGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, -1)
+  ]);
+  const handRay = new THREE.Line(handRayGeometry, handRayMaterial);
+  scene.add(handRay);
+  handRay.visible = false; // Hide until a hand is detected
+
 
   camera = new THREE.PerspectiveCamera(
     75,
@@ -82,11 +120,58 @@ async function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+  // For shadowing
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // sphere.castShadow = true;
+  ground.receiveShadow = true;
+
+  // Add OrbitControls for mouse rotation
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; // Smooth motion
+  controls.dampingFactor = 0.05;
+  controls.enableZoom = true; // Allow zooming
+  controls.minDistance = 1; // Limit zoom in
+  controls.maxDistance = 10; // Limit zoom out
+  controls.target.set(0, 0, 0); // Look at origin
+
+
+  // Ambient light for general illumination
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-  directionalLight.position.set(0, 1, 1).normalize();
-  scene.add(directionalLight);
+
+  // Directional sunlight
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+  sunLight.position.set(5, 10, 5);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 2048;
+  sunLight.shadow.mapSize.height = 2048;
+  scene.add(sunLight);
+
+  // // Create a group to hold interactive objects
+  // const objectsGroup = new THREE.Group();
+  // scene.add(objectsGroup);
+
+  // // Helper function to make a mesh
+  // function makeObject(geometry, color, x, y, z) {
+  //     const material = new THREE.MeshStandardMaterial({ color });
+  //     const mesh = new THREE.Mesh(geometry, material);
+  //     mesh.position.set(x, y, z);
+  //     mesh.castShadow = true;
+  //     mesh.receiveShadow = true;
+  //     objectsGroup.add(mesh);
+  //     return mesh;
+  // }
+
+  // // Add some cubes
+  // makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0xff0000, -1, 0, -1);
+  // makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x00ff00, 1, 0, -1);
+  // makeObject(new THREE.BoxGeometry(0.3, 0.3, 0.3), 0x0000ff, 0, 0.5, 1);
+
+  // // Add some spheres
+  // makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xffff00, -0.5, 0.3, 0.5);
+  // makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0xff00ff, 0.5, 0.3, -0.5);
+  // makeObject(new THREE.SphereGeometry(0.2, 32, 32), 0x00ffff, 0, 1, 0);
 
   window.addEventListener("resize", onWindowResize);
 
@@ -111,11 +196,21 @@ async function init() {
     // 각 손에 대한 랜드마크 시각화 요소 초기화
     const currentHandSpheres = [];
     const currentSmoothedLandmarks = [];
-    const landmarkMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    // sharedMat for other fingers except pinching
+    const sharedMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
     const sphereGeometry = new THREE.SphereGeometry(0.02, 16, 16);
     for (let j = 0; j < 21; j++) {
-      const sphere = new THREE.Mesh(sphereGeometry, landmarkMaterial);
-      sphere.visible = false; // 처음에는 숨김
+      let sphereMaterial;
+
+      // Give thumb tip (4) and index tip (8) their own material
+      if (j === 4 || j === 8) {
+        sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+      } else {
+        sphereMaterial = sharedMaterial;
+      }
+
+      const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      sphere.visible = false;
       scene.add(sphere);
       currentHandSpheres.push(sphere);
       currentSmoothedLandmarks.push(new THREE.Vector3());
@@ -147,6 +242,78 @@ async function init() {
   animate();
 }
 
+// ----------- Functions for gesture control, grabbing and more --------------
+function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPixels = 35) {
+    // Get thumb tip (index 4) and index tip (index 8)
+    const thumbTip = rawLandmarks[4];
+    const indexTip = rawLandmarks[8];
+
+    // Convert normalized coords (0–1) to pixels
+    const thumbX = thumbTip.x * videoWidth;
+    const thumbY = thumbTip.y * videoHeight;
+    const indexX = indexTip.x * videoWidth;
+    const indexY = indexTip.y * videoHeight;
+
+    // 2D Euclidean distance (ignore Z)
+    const dx = thumbX - indexX;
+    const dy = thumbY - indexY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance < thresholdPixels;
+}
+
+function onPinchStart(handIndex) {
+  // console.log(`Hand ${handIndex} pinch START`);
+  // Example: grab nearest object
+
+  // if (grabbedObject) return;
+
+  // const handLandmarks = smoothedLandmarksPerHand[handIndex];
+  // const palmPos = new THREE.Vector3()
+  //   .add(handLandmarks[0])
+  //   .add(handLandmarks[5])
+  //   .add(handLandmarks[17])
+  //   .divideScalar(3);
+  // const dir = new THREE.Vector3().subVectors(handLandmarks[12], palmPos).normalize();
+
+  // raycaster.set(palmPos, dir);
+
+  // const selectableObjects = scene.children.filter(obj =>
+  //     obj.isMesh && !landmarkVisualsPerHand.flat().includes(obj) && !connectionVisualsPerHand.flat().includes(obj)
+  // );
+
+  // const intersects = raycaster.intersectObjects(selectableObjects);
+  // if (intersects.length > 0) {
+  //     grabbedObject = intersects[0].object;
+  //     console.log("Grabbed:", grabbedObject.name || grabbedObject.id);
+  // }
+
+  grabNearestObject();
+}
+
+function onPinchEnd(handIndex) {
+  // console.log(`Hand ${handIndex} pinch END`);
+  // Example: release grabbed object
+
+  releaseObject();
+}
+
+function grabNearestObject() {
+  console.log("Grabbing object...");
+  // TODO: Raycast toward hand & attach object
+
+
+
+}
+
+function releaseObject() {
+  console.log("Releasing object...");
+  // TODO: Drop or deselect object
+}
+
+
+// ---------------------------------------------------------------------------
+
 // --- 웹캠 함수 ---
 async function startWebcam() {
   try {
@@ -163,6 +330,8 @@ async function startWebcam() {
     document.getElementById("loading-message").style.color = "red";
   }
 }
+
+
 
 async function predictWebcam() {
   if (
@@ -192,9 +361,65 @@ async function predictWebcam() {
       const currentHandLandmarks = results.landmarks[handIndex];
       //const handedness = results.handedness[handIndex][0].categoryName; // 'Left' 또는 'Right'
 
+      // // temp
+      // // Assume smoothedLandmarksPerHand[handIndex] exists
+      // const handLandmarks = smoothedLandmarksPerHand[handIndex];
+
+      // // Get hand position (palm center = average of wrist [0], index base [5], pinky base [17])
+      // const palmPos = new THREE.Vector3()
+      //   .add(handLandmarks[0])
+      //   .add(handLandmarks[5])
+      //   .add(handLandmarks[17])
+      //   .divideScalar(3);
+
+      // // Get direction: from palm to middle finger tip [12]
+      // const dir = new THREE.Vector3().subVectors(handLandmarks[12], palmPos).normalize();
+
+      // // Update ray visual
+      // handRay.position.copy(palmPos);
+      // const points = [new THREE.Vector3(0,0,0), dir.clone().multiplyScalar(5)];
+      // handRay.geometry.setFromPoints(points);
+      // handRay.visible = true;
+
+      // // Raycast from palm forward
+      // raycaster.set(palmPos, dir);
+
+      // const selectableObjects = scene.children.filter(obj =>
+      //   obj.isMesh && !landmarkVisualsPerHand.flat().includes(obj) && !connectionVisualsPerHand.flat().includes(obj)
+      // );
+
+      // const intersects = raycaster.intersectObjects(selectableObjects);
+
+      // if (intersects.length > 0) {
+      //   handRayMaterial.color.set(0x00ff00); // Green if pointing at something
+      // } else {
+      //   handRayMaterial.color.set(0xffff00); // Yellow if nothing hit
+      // }
+
+      // Triggering Pinching State
+      const pinchingNow = isPinching2D(currentHandLandmarks, video.videoWidth, video.videoHeight);
+
+      // If state changed, trigger event
+      if (pinchingNow && !isPinchingState[handIndex]) {
+          console.log(`Hand ${handIndex} PINCH START`);
+          isPinchingState[handIndex] = true;
+          onPinchStart(handIndex);
+      } 
+      else if (!pinchingNow && isPinchingState[handIndex]) {
+          console.log(`Hand ${handIndex} PINCH END`);
+          isPinchingState[handIndex] = false;
+          onPinchEnd(handIndex);
+      }
+
+      // Optional: Visual feedback (color fingertips)
+      const tipColor = pinchingNow ? 0xff0000 : 0x00ffff;
+      landmarkVisualsPerHand[handIndex][4].material.color.set(tipColor);
+      landmarkVisualsPerHand[handIndex][8].material.color.set(tipColor);
+
       const currentLandmarkSpheres = landmarkVisualsPerHand[handIndex];
       const currentHandConnections = connectionVisualsPerHand[handIndex];
       const currentSmoothedLandmarks = smoothedLandmarksPerHand[handIndex];
+
 
       // 현재 손 시각화 요소 표시
       currentLandmarkSpheres.forEach((sphere) => (sphere.visible = true));
@@ -225,6 +450,9 @@ async function predictWebcam() {
 
         // 구체 위치 업데이트
         currentLandmarkSpheres[i].position.copy(currentSmoothedLandmarks[i]);
+
+        // Trying out pinching and other functions for gesture control
+
       }
 
       // --- 각 손에 대한 연결선 업데이트 ---
@@ -255,6 +483,8 @@ async function predictWebcam() {
 function animate() {
   requestAnimationFrame(animate);
 
+  controls.update(); // Required for damping
+
   frameCount++;
   const currentTime = performance.now();
   if (currentTime - lastFpsUpdateTime >= 1000) {
@@ -274,4 +504,7 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+
+
 window.onload = init;
+
