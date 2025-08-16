@@ -1,6 +1,8 @@
+// Updated handTracking.js
 import * as THREE from "three";
 import { ArrowHelper } from "three";
 import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPerHand, getConeVisualsPerHand, isPinchingState } from "./gestureControl.js";
+import { getSceneObjects } from "./threeSetup.js"; // Added import
 
 const NUM_HANDS_TO_DETECT = 2;
 const EMA_ALPHA = 0.35;
@@ -20,11 +22,15 @@ const connectionVisualsPerHand = [];
 const smoothedLandmarksPerHand = [];
 const zAxisVisualsPerHand = []; // Only blue z-arrow per hand
 const laserVisualsPerHand = []; // Laser line per hand
+const palmSpheresPerHand = []; // New: Persistent spheres per hand
 let lastVideoTime = -1;
 let results = undefined;
 let fpsCounterElement;
 let frameCount = 0;
 let lastFpsUpdateTime = performance.now();
+
+const PALM_FACING_THRESHOLD = 0.7; // Adjust based on testing; assumes normal.z > this for facing camera
+const PALM_SPHERE_RADIUS = 0.1; // Size of sphere in palm
 
 export async function setupHandTracking(scene) {
   fpsCounterElement = document.getElementById("fps-counter");
@@ -71,6 +77,16 @@ export async function setupHandTracking(scene) {
     laserLine.visible = false;
     scene.add(laserLine);
     laserVisualsPerHand.push(laserLine);
+
+    // New: Create persistent palm sphere per hand
+    const palmSphereGeometry = new THREE.SphereGeometry(PALM_SPHERE_RADIUS, 16, 16);
+    const palmSphereMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // Green sphere for visibility
+    const palmSphere = new THREE.Mesh(palmSphereGeometry, palmSphereMaterial);
+    palmSphere.visible = false; // Initially hidden
+    palmSphere.castShadow = true;
+    palmSphere.receiveShadow = true;
+    scene.add(palmSphere);
+    palmSpheresPerHand.push(palmSphere);
   }
 }
 
@@ -88,6 +104,49 @@ export function getForwardDirection(handIndex) {
     return middleBase.clone().sub(wrist).normalize();
   }
   return new THREE.Vector3(0, 0, -1);
+}
+
+// Updated: Function to check if open palm is facing the camera, handling left/right handedness
+function isPalmFacingCamera(handIndex, smoothedLandmarks, handedness) {
+  const wrist = smoothedLandmarks[0];
+  const indexBase = smoothedLandmarks[5];
+  const pinkyBase = smoothedLandmarks[17];
+
+  const vec1 = new THREE.Vector3().subVectors(indexBase, wrist);
+  const vec2 = new THREE.Vector3().subVectors(pinkyBase, wrist);
+  let normal = new THREE.Vector3().crossVectors(vec1, vec2).normalize();
+
+  // Adjust for handedness: Flip normal for left hand to consistent direction
+  if (handedness === 'Left') {
+    normal.negate();
+  }
+
+  // Assuming camera is at positive z, facing negative z; palm facing camera if normal z > threshold
+  return normal.z > PALM_FACING_THRESHOLD;
+}
+
+// New: Function to update palm sphere position and visibility
+function updatePalmSphere(handIndex, smoothedLandmarks, isFacing) {
+  const palmSphere = palmSpheresPerHand[handIndex];
+  if (!palmSphere) return;
+
+  if (isFacing) {
+    // Palm center approx average of wrist, index/pinky/ring/middle bases
+    const palmCenter = new THREE.Vector3()
+      .add(smoothedLandmarks[0])
+      .add(smoothedLandmarks[5])
+      .add(smoothedLandmarks[9])
+      .add(smoothedLandmarks[13])
+      .add(smoothedLandmarks[17])
+      .divideScalar(5);
+
+    palmSphere.position.copy(palmCenter);
+    palmSphere.visible = true;
+    console.log(`Hand ${handIndex} palm sphere toggled ON at:`, palmCenter);
+  } else {
+    palmSphere.visible = false;
+    console.log(`Hand ${handIndex} palm sphere toggled OFF`);
+  }
 }
 
 export function predictWebcam(video, handLandmarker) {
@@ -114,6 +173,7 @@ export function predictWebcam(video, handLandmarker) {
     connectionVisualsPerHand[i].forEach((capsule) => (capsule.visible = false));
     zAxisVisualsPerHand[i].visible = false;
     laserVisualsPerHand[i].visible = false;
+    palmSpheresPerHand[i].visible = false; // Hide palm spheres by default
   }
 
   if (results && results.landmarks && results.landmarks.length > 0) {
@@ -198,6 +258,11 @@ export function predictWebcam(video, handLandmarker) {
       positions[4] = laserEnd.y;
       positions[5] = laserEnd.z;
       currentLaser.geometry.attributes.position.needsUpdate = true;
+
+      // New: Detect palm facing camera and toggle/update sphere visibility
+      const handedness = results.handedness[handIndex][0].categoryName; // 'Left' or 'Right'
+      const facingNow = isPalmFacingCamera(handIndex, currentSmoothedLandmarks, handedness);
+      updatePalmSphere(handIndex, currentSmoothedLandmarks, facingNow);
 
       // Update raycast for this hand
       updateRaycast(handIndex);
