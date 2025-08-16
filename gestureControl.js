@@ -19,7 +19,7 @@ const CONE_HEIGHT = 0.1; // Height of the cone
 const WHITEBOARD_WIDTH = 5; // Matches whiteboard width in threeSetup.js
 const WHITEBOARD_HEIGHT = 3; // Matches whiteboard height in threeSetup.js
 const CURSOR_SCALE_FACTOR = 2.5; // Adjust as needed to fit webcam FOV to whiteboard; higher = more coverage
-const BUTTON_HOVER_THRESHOLD = 0.3; // Increased to account for 3D button size
+const BUTTON_HOVER_THRESHOLD = 0.4; // Increased to account for 3D button size
 const BUTTON_SNAP_OFFSET = 0.06; // Offset for cursor snap above button surface
 
 // Initialize ray and cone visuals for each hand

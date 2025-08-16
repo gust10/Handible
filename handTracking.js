@@ -1,4 +1,3 @@
-// Updated handTracking.js
 import * as THREE from "three";
 import { ArrowHelper } from "three";
 import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPerHand, getConeVisualsPerHand, isPinchingState } from "./gestureControl.js";
@@ -32,8 +31,52 @@ let lastFpsUpdateTime = performance.now();
 const PALM_FACING_THRESHOLD = 0.7; // Adjust based on testing; assumes normal.z > this for facing camera
 const PALM_SPHERE_RADIUS = 0.1; // Size of sphere in palm
 
+// New: UI panel for left hand
+let uiPanel = null;
+const UI_PANEL_WIDTH = 1.0;
+const UI_PANEL_HEIGHT = 0.6;
+const UI_PANEL_OFFSET = new THREE.Vector3(0.6, 0.1, -0.5); // Offset to right side (adjust x for distance)
+const UI_PANEL_TILT = -Math.PI / 12; // Slight tilt downwards
+const smoothedUIPosition = new THREE.Vector3(); // For smooth following
+
 export async function setupHandTracking(scene) {
   fpsCounterElement = document.getElementById("fps-counter");
+
+  // Create UI panel once
+  const panelGeometry = new THREE.PlaneGeometry(UI_PANEL_WIDTH, UI_PANEL_HEIGHT);
+  const panelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x333333, // Dark gray for clean aesthetic
+    roughness: 0.2,
+    metalness: 0.1,
+    transparent: true, 
+    opacity: 0.5,
+    side: THREE.DoubleSide
+  });
+  uiPanel = new THREE.Mesh(panelGeometry, panelMaterial);
+  uiPanel.visible = false;
+  uiPanel.castShadow = true;
+  uiPanel.receiveShadow = true;
+  scene.add(uiPanel);
+
+  // Add buttons to UI panel
+  const buttonPositions = [
+    { x: -0.3, y: 0, color: 0xff0000 }, // Red button
+    { x: 0, y: 0, color: 0x00ff00 }, // Green button
+    { x: 0.3, y: 0, color: 0x0000ff } // Blue button
+  ];
+
+  buttonPositions.forEach(pos => {
+    const buttonGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.05, 32); // Smaller for UI
+    const buttonMaterial = new THREE.MeshStandardMaterial({ 
+      color: pos.color,
+      roughness: 0.4,
+      metalness: 0.5
+    });
+    const button = new THREE.Mesh(buttonGeometry, buttonMaterial);
+    button.position.set(pos.x, pos.y, 0.03); // Slightly above panel
+    button.rotation.x = Math.PI / 2;
+    uiPanel.add(button);
+  });
 
   for (let i = 0; i < NUM_HANDS_TO_DETECT; i++) {
     const currentHandSpheres = [];
@@ -149,6 +192,31 @@ function updatePalmSphere(handIndex, smoothedLandmarks, isFacing) {
   }
 }
 
+// New: Function to update UI panel for left hand
+function updateUIPanel(smoothedLandmarks, isFacing) {
+  if (!uiPanel) return;
+
+  if (isFacing) {
+    // Hand center for positioning (e.g., wrist)
+    const handCenter = smoothedLandmarks[0].clone(); // Wrist
+
+    // Smooth position
+    smoothedUIPosition.lerp(handCenter.add(UI_PANEL_OFFSET), EMA_ALPHA);
+
+    uiPanel.position.copy(smoothedUIPosition);
+
+    // Face camera with slight tilt
+    uiPanel.lookAt(getSceneObjects().camera.position); // Face camera
+    uiPanel.rotation.x += UI_PANEL_TILT; // Add slight tilt
+
+    uiPanel.visible = true;
+    console.log("UI panel toggled ON");
+  } else {
+    uiPanel.visible = false;
+    console.log("UI panel toggled OFF");
+  }
+}
+
 export function predictWebcam(video, handLandmarker) {
   if (!handLandmarker || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
     requestAnimationFrame(() => predictWebcam(video, handLandmarker));
@@ -175,6 +243,7 @@ export function predictWebcam(video, handLandmarker) {
     laserVisualsPerHand[i].visible = false;
     palmSpheresPerHand[i].visible = false; // Hide palm spheres by default
   }
+  if (uiPanel) uiPanel.visible = false; // Hide UI panel by default
 
   if (results && results.landmarks && results.landmarks.length > 0) {
     for (let handIndex = 0; handIndex < results.landmarks.length; handIndex++) {
@@ -263,6 +332,11 @@ export function predictWebcam(video, handLandmarker) {
       const handedness = results.handedness[handIndex][0].categoryName; // 'Left' or 'Right'
       const facingNow = isPalmFacingCamera(handIndex, currentSmoothedLandmarks, handedness);
       updatePalmSphere(handIndex, currentSmoothedLandmarks, facingNow);
+
+      // New: If left hand and facing, update UI panel
+      if (handedness === 'Left') {
+        updateUIPanel(currentSmoothedLandmarks, facingNow);
+      }
 
       // Update raycast for this hand
       updateRaycast(handIndex);
