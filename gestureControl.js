@@ -15,6 +15,9 @@ const CLOSE_DISTANCE_THRESHOLD = 0.5; // Distance from hand to wall to consider 
 const SPHERE_RADIUS = 0.05; // Size of the created sphere
 const CONE_RADIUS = 0.05; // Radius of the cone base
 const CONE_HEIGHT = 0.1; // Height of the cone
+const WHITEBOARD_WIDTH = 5; // Matches whiteboard width in threeSetup.js
+const WHITEBOARD_HEIGHT = 3; // Matches whiteboard height in threeSetup.js
+const CURSOR_SCALE_FACTOR = 2.5; // Adjust as needed to fit webcam FOV to whiteboard; higher = more coverage
 
 // Initialize ray and cone visuals for each hand
 export function initGestureControl(scene, numHands) {
@@ -63,8 +66,8 @@ export function onPinchStart(handIndex) {
   const { smoothedLandmarksPerHand } = getHandTrackingData();
   const handLandmarks = smoothedLandmarksPerHand[handIndex];
 
-  // Use smoothed ray origin and direction
-  const rayOrigin = smoothedRayOrigins[handIndex];
+  // Use landmark 3 (thumb IP) as ray origin
+  const rayOrigin = handLandmarks[3].clone();
   const rayDirection = smoothedRayDirections[handIndex];
   raycaster.set(rayOrigin, rayDirection);
 
@@ -118,12 +121,8 @@ export function updateRaycast(handIndex) {
   const { smoothedLandmarksPerHand, landmarkVisualsPerHand, connectionVisualsPerHand } = getHandTrackingData();
   const handLandmarks = smoothedLandmarksPerHand[handIndex];
   
-  // Calculate ray origin (midpoint of index tip and thumb tip)
-  const indexTip = handLandmarks[8];
-  const thumbTip = handLandmarks[4];
-  const rayOrigin = new THREE.Vector3()
-    .addVectors(indexTip, thumbTip)
-    .divideScalar(2);
+  // Use landmark 3 (thumb IP) as ray origin
+  const rayOrigin = handLandmarks[3].clone();
 
   // Calculate ray direction (from wrist to middle finger tip)
   const wrist = handLandmarks[0];
@@ -148,11 +147,19 @@ export function updateRaycast(handIndex) {
   // rayLine.geometry.setFromPoints(points);
   // rayLine.visible = true; // Always visible when hand is detected
 
-  // Update cone cursor on whiteboard
+  // Update cone cursor on whiteboard with scaled coordinates
   const wall = scene.children.find(obj => obj.userData.isWall);
   if (wall) {
-    const midPoint = new THREE.Vector3().addVectors(indexTip, thumbTip).divideScalar(2);
-    const cursorPos = new THREE.Vector3(midPoint.x, midPoint.y, wall.position.z + 0.01); // Slightly above the whiteboard
+    // Use landmark 3 (thumb IP) for cursor position
+    const cursorPoint = handLandmarks[3];
+    const scaledX = cursorPoint.x * CURSOR_SCALE_FACTOR;
+    const scaledY = cursorPoint.y * CURSOR_SCALE_FACTOR;
+    // Clamp cursor position to whiteboard boundaries
+    const cursorPos = new THREE.Vector3(
+      Math.max(-WHITEBOARD_WIDTH / 2, Math.min(WHITEBOARD_WIDTH / 2, scaledX)),
+      Math.max(-WHITEBOARD_HEIGHT / 2, Math.min(WHITEBOARD_HEIGHT / 2, scaledY)),
+      wall.position.z + 0.01 // Slightly above the whiteboard
+    );
     const cone = coneVisualsPerHand[handIndex];
     cone.position.copy(cursorPos);
     cone.visible = true;

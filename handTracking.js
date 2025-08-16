@@ -3,7 +3,7 @@ import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPer
 
 const NUM_HANDS_TO_DETECT = 2;
 const EMA_ALPHA = 0.35;
-const Z_MAGNIFICATION_FACTOR = 2;
+const Z_MAGNIFICATION_FACTOR = 5;
 const Z_OFFSET_FOR_DIRECT_DEPTH = 0;
 
 const HAND_CONNECTIONS = [
@@ -109,6 +109,7 @@ export function predictWebcam(video, handLandmarker) {
 
       for (let i = 0; i < currentHandLandmarks.length; i++) {
         const rawLandmark = currentHandLandmarks[i];
+        // Revert to original limited range for hand visuals (small size)
         const targetX = (1.0 - rawLandmark.x - 0.5) * 2;
         const targetY = (rawLandmark.y - 0.5) * -2;
         const targetZ = rawLandmark.z * Z_MAGNIFICATION_FACTOR + Z_OFFSET_FOR_DIRECT_DEPTH;
