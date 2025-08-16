@@ -1,3 +1,4 @@
+// Updated gestureControl.js
 import * as THREE from "three";
 import { getSceneObjects } from "./threeSetup.js";
 import { getHandTrackingData } from "./handTracking.js";
@@ -11,33 +12,23 @@ const smoothedRayDirections = []; // Smoothed ray direction for each hand
 export const isPinchingState = Array(2).fill(false); // Moved from handTracking.js
 const EMA_ALPHA = 0.35; // Match hand tracking smoothing
 const GRAB_SCALE_FACTOR = 1.2; // Scale grabbed object for visual feedback
-const CLOSE_DISTANCE_THRESHOLD = 0.5; // Distance from hand to wall to consider "close"
+const CLOSE_DISTANCE_THRESHOLD = 3.0; // Increased further to ensure interactions trigger
 const SPHERE_RADIUS = 0.05; // Size of the created sphere
 const CONE_RADIUS = 0.05; // Radius of the cone base
 const CONE_HEIGHT = 0.1; // Height of the cone
 const WHITEBOARD_WIDTH = 5; // Matches whiteboard width in threeSetup.js
 const WHITEBOARD_HEIGHT = 3; // Matches whiteboard height in threeSetup.js
 const CURSOR_SCALE_FACTOR = 2.5; // Adjust as needed to fit webcam FOV to whiteboard; higher = more coverage
+const BUTTON_HOVER_THRESHOLD = 0.3; // Increased to account for 3D button size
+const BUTTON_SNAP_OFFSET = 0.06; // Offset for cursor snap above button surface
 
 // Initialize ray and cone visuals for each hand
 export function initGestureControl(scene, numHands) {
   for (let i = 0; i < numHands; i++) {
-    // Ray visual (commented out for now)
-    // const rayMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
-    // const rayGeometry = new THREE.BufferGeometry().setFromPoints([
-    //   new THREE.Vector3(0, 0, 0),
-    //   new THREE.Vector3(0, 0, -5), // Extend ray 5 units forward
-    // ]);
-    // const rayLine = new THREE.Line(rayGeometry, rayMaterial);
-    // rayLine.visible = false;
-    // scene.add(rayLine);
-    // rayVisualsPerHand.push(rayLine);
-
-    // Cone visual
+    // Cone visual (no initial rotation; we'll set quaternion dynamically)
     const coneGeometry = new THREE.ConeGeometry(CONE_RADIUS, CONE_HEIGHT, 32);
     const coneMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red cone
     const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-    cone.rotation.x = -Math.PI / 2; // Flipped to point towards the whiteboard (negative z)
     cone.visible = false;
     scene.add(cone);
     coneVisualsPerHand.push(cone);
@@ -66,49 +57,34 @@ export function onPinchStart(handIndex) {
   const { smoothedLandmarksPerHand } = getHandTrackingData();
   const handLandmarks = smoothedLandmarksPerHand[handIndex];
 
-  // Use landmark 3 (thumb IP) as ray origin
-  const rayOrigin = handLandmarks[3].clone();
-  const rayDirection = smoothedRayDirections[handIndex];
-  raycaster.set(rayOrigin, rayDirection);
-
-  // Find intersections with the wall
+  const cone = coneVisualsPerHand[handIndex];
   const wall = scene.children.find(obj => obj.userData.isWall);
-  if (wall) {
-    const intersects = raycaster.intersectObject(wall);
-    if (intersects.length > 0) {
-      const intersectionPoint = intersects[0].point;
-      const distanceToWall = intersects[0].distance;
+  const buttons = wall ? wall.children.filter(obj => obj.userData.isButton) : [];
+  let triggeredButton = false;
 
-      // Check if close enough
-      if (distanceToWall < CLOSE_DISTANCE_THRESHOLD) {
-        // Create small sphere at intersection point
-        const sphereGeometry = new THREE.SphereGeometry(SPHERE_RADIUS, 16, 16);
-        const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // Red sphere
-        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        sphere.position.copy(intersectionPoint);
-        sphere.castShadow = true;
-        sphere.receiveShadow = true;
-        scene.add(sphere);
-        console.log("Created sphere at:", intersectionPoint);
+  // Always check for button interactions based on cone proximity
+  buttons.forEach(button => {
+    const buttonWorldPos = new THREE.Vector3();
+    button.getWorldPosition(buttonWorldPos);
+    const distanceToButton = cone.position.distanceTo(buttonWorldPos);
+    // console.log('Pinch distance to button:', distanceToButton);
+    if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
+      // Press effect: move button "down" along its local z (towards board)
+      button.position.z -= 0.05; // Depress by half height
+      button.material.color.set(button.userData.activeColor);
+      console.log("Button pressed:", button);
+      triggeredButton = true;
 
-        // Check if cursor is on a button and trigger it
-        const cone = coneVisualsPerHand[handIndex];
-        const buttons = scene.children.filter(obj => obj.userData.isButton);
-        buttons.forEach(button => {
-          const distanceToButton = cone.position.distanceTo(button.position);
-          if (distanceToButton < 0.2) { // Threshold for "on the button"
-            button.material.color.set(button.userData.activeColor);
-            console.log("Button triggered:", button);
-          }
-        });
-
-        return; // Skip grabbing other objects if creating sphere
-      }
+      // Reset after a short delay to simulate button pop back
+      setTimeout(() => {
+        button.position.copy(button.userData.defaultPosition);
+        button.material.color.set(button.userData.defaultColor);
+      }, 200); // 200ms press duration
     }
-  }
+  });
 
-  // Fallback to grabbing nearest object if not close to wall
-  grabNearestObject(handIndex);
+  // Fallback to grabbing nearest object if not close to wall or no interaction
+  // grabNearestObject(handIndex); // Commented as per original
 }
 
 export function onPinchEnd(handIndex) {
@@ -135,49 +111,71 @@ export function updateRaycast(handIndex) {
   smoothedRayOrigins[handIndex].lerp(rayOrigin, EMA_ALPHA);
   smoothedRayDirections[handIndex].lerp(rayDirection, EMA_ALPHA);
 
-  // Update raycaster
-  raycaster.set(smoothedRayOrigins[handIndex], smoothedRayDirections[handIndex]);
-
-  // Comment out ray visual for now
-  // const rayLine = rayVisualsPerHand[handIndex];
-  // const points = [
-  //   smoothedRayOrigins[handIndex],
-  //   smoothedRayOrigins[handIndex].clone().add(smoothedRayDirections[handIndex].clone().multiplyScalar(5)),
-  // ];
-  // rayLine.geometry.setFromPoints(points);
-  // rayLine.visible = true; // Always visible when hand is detected
-
-  // Update cone cursor on whiteboard with scaled coordinates
+  // Update cone cursor on whiteboard with scaled coordinates, adjusted for tilt
   const wall = scene.children.find(obj => obj.userData.isWall);
   if (wall) {
     // Use landmark 3 (thumb IP) for cursor position
     const cursorPoint = handLandmarks[3];
     const scaledX = cursorPoint.x * CURSOR_SCALE_FACTOR;
     const scaledY = cursorPoint.y * CURSOR_SCALE_FACTOR;
-    // Clamp cursor position to whiteboard boundaries
-    const cursorPos = new THREE.Vector3(
-      Math.max(-WHITEBOARD_WIDTH / 2, Math.min(WHITEBOARD_WIDTH / 2, scaledX)),
-      Math.max(-WHITEBOARD_HEIGHT / 2, Math.min(WHITEBOARD_HEIGHT / 2, scaledY)),
-      wall.position.z + 0.01 // Slightly above the whiteboard
-    );
+    // Clamp to whiteboard boundaries (local space)
+    const clampedX = Math.max(-WHITEBOARD_WIDTH / 2, Math.min(WHITEBOARD_WIDTH / 2, scaledX));
+    const clampedY = Math.max(-WHITEBOARD_HEIGHT / 2, Math.min(WHITEBOARD_HEIGHT / 2, scaledY));
+
+    // Convert local position (at surface z=0 for tip) to world space
+    const localPos = new THREE.Vector3(clampedX, clampedY, 0);
+    const worldPos = localPos.applyMatrix4(wall.matrixWorld); // Tip position
+
+    // Calculate wall normal
+    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(wall.quaternion).normalize();
+
+    // Set cone direction: from base to tip = -normal (tip towards board)
+    const coneDirection = normal.clone().negate();
     const cone = coneVisualsPerHand[handIndex];
-    cone.position.copy(cursorPos);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
+
+    // Set position to base = tip + normal * CONE_HEIGHT (since base is offset outward)
+    cone.position.copy(worldPos).add(normal.multiplyScalar(CONE_HEIGHT));
+
     cone.visible = true;
 
-    // Check hover and pinch on buttons
-    const buttons = scene.children.filter(obj => obj.userData.isButton);
+    // Check for hover on buttons and apply effects; also find closest hovered button for snapping
+    const buttons = wall.children.filter(obj => obj.userData.isButton);
+    let hoveredButton = null;
+    let minDistance = Infinity;
     buttons.forEach(button => {
-      const distanceToButton = cone.position.distanceTo(button.position);
-      if (distanceToButton < 0.2) { // Threshold for "on the button"
+      const buttonWorldPos = new THREE.Vector3();
+      button.getWorldPosition(buttonWorldPos);
+      const distanceToButton = cone.position.distanceTo(buttonWorldPos);
+      // console.log('Hover distance to button:', distanceToButton);
+      if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
         if (isPinchingState[handIndex]) {
-          button.material.color.set(button.userData.activeColor);
+          // Press handled in onPinchStart
         } else {
+          // Hover effect: slight scale up and color change
+          button.scale.set(1.1, 1.1, 1.1);
           button.material.color.set(button.userData.hoverColor);
         }
+        if (distanceToButton < minDistance) {
+          minDistance = distanceToButton;
+          hoveredButton = button;
+        }
       } else {
+        // Reset hover
+        button.scale.set(1, 1, 1);
         button.material.color.set(button.userData.defaultColor);
       }
     });
+
+    // If hovering over a button, snap the cone (cursor) to the top of the button
+    if (hoveredButton) {
+      const buttonWorldPos = new THREE.Vector3();
+      hoveredButton.getWorldPosition(buttonWorldPos);
+      // Tip at button top: buttonPos + normal * (button height / 2)
+      const buttonTop = buttonWorldPos.clone().add(normal.multiplyScalar(0.05)); // 0.1 height / 2 = 0.05
+      // Base = buttonTop + normal * CONE_HEIGHT
+      cone.position.copy(buttonTop).add(normal.multiplyScalar(CONE_HEIGHT));
+    }
   }
 
   // If an object is grabbed, move it to the ray origin

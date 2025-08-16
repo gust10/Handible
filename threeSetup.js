@@ -1,3 +1,4 @@
+// Updated threeSetup.js
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
@@ -5,9 +6,22 @@ let scene, camera, renderer, controls;
 
 export function setupThreeScene() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87ceeb);
+  scene.background = new THREE.Color(0x87ceeb); // Keep sky blue for now
 
-  // Whiteboard wall (vertical plane)
+  // Add a floor for cleanliness and shadows
+  const floorGeometry = new THREE.PlaneGeometry(10, 10);
+  const floorMaterial = new THREE.MeshStandardMaterial({
+    color: 0xdddddd,
+    roughness: 0.8,
+    metalness: 0.2
+  });
+  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -1.5; // Below the whiteboard
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Whiteboard wall (vertical plane, tilted slightly downwards)
   const wallGeometry = new THREE.PlaneGeometry(5, 3); // Wider and taller for a whiteboard feel
   const wallMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff, // White color for whiteboard
@@ -15,12 +29,15 @@ export function setupThreeScene() {
     metalness: 0.0
   });
   const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-  wall.position.z = -1; // Closer to the camera (was -2)
+  wall.position.z = -1; // Closer to the camera
+  wall.position.y = 0; // Center vertically
+  wall.rotation.x = -Math.PI / 12; // Tilt downwards by 15 degrees for better button press visibility
   wall.receiveShadow = true;
+  wall.castShadow = true; // Allow whiteboard to cast shadows if needed
   wall.userData.isWall = true; // Identifier for raycasting and to prevent grabbing
   scene.add(wall);
 
-  // Add buttons on the whiteboard
+  // Add 3D buttons on the whiteboard
   const buttonPositions = [
     { x: -1, y: 0.5, color: 0xff0000 }, // Red button
     { x: 0, y: 0.5, color: 0x00ff00 }, // Green button
@@ -28,26 +45,26 @@ export function setupThreeScene() {
   ];
 
   buttonPositions.forEach(pos => {
-    const buttonGeometry = new THREE.CircleGeometry(0.2, 32); // Circular button
-    const buttonMaterial = new THREE.MeshStandardMaterial({ color: pos.color });
+    const buttonGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 32); // 3D cylinder for button depth
+    const buttonMaterial = new THREE.MeshStandardMaterial({ 
+      color: pos.color,
+      roughness: 0.4,
+      metalness: 0.5 // Slight metallic sheen for prettier look
+    });
     const button = new THREE.Mesh(buttonGeometry, buttonMaterial);
-    button.position.set(pos.x, pos.y, wall.position.z + 0.01); // Slightly in front of the wall
+    button.position.set(pos.x, pos.y, 0.05); // Initial height above the board (half of cylinder height)
+    button.rotation.x = Math.PI / 2; // Rotate to face outwards (cylinder defaults to y-up)
+    
+    // Attach button to wall so it tilts with it
+    wall.add(button);
+
     button.userData.isButton = true;
     button.userData.defaultColor = pos.color;
     button.userData.hoverColor = 0xffff00; // Yellow for hover
-    button.userData.activeColor = 0xffa500; // Orange for pinched
-    scene.add(button);
+    button.userData.activeColor = 0xffa500; // Orange for pressed
+    button.userData.defaultPosition = button.position.clone(); // Store default position for reset
+    button.castShadow = true;
   });
-
-  // Hand ray visual
-  const handRayMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
-  const handRayGeometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(0, 0, -1)
-  ]);
-  const handRay = new THREE.Line(handRayGeometry, handRayMaterial);
-  scene.add(handRay);
-  handRay.visible = false;
 
   camera = new THREE.PerspectiveCamera(
     75,
@@ -55,7 +72,7 @@ export function setupThreeScene() {
     0.1,
     1000
   );
-  camera.position.z = 2;
+  camera.position.set(0, 0.5, 2); // Slightly higher to see the tilt better
 
   const canvas = document.getElementById("threeCanvas");
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -63,6 +80,8 @@ export function setupThreeScene() {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; // Better color grading for prettier scene
+  renderer.toneMappingExposure = 1.2; // Slightly brighter
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -70,22 +89,37 @@ export function setupThreeScene() {
   controls.enableZoom = true;
   controls.minDistance = 1;
   controls.maxDistance = 10;
-  controls.target.set(0, 0, 0);
+  controls.target.set(0, 0, -1); // Target the whiteboard
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  // Improved lighting for fancier, cleaner look
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // Softer ambient
   scene.add(ambientLight);
 
-  const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6); // Sky/ground light for natural feel
+  hemiLight.position.set(0, 20, 0);
+  scene.add(hemiLight);
+
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1.2); // Brighter sun
   sunLight.position.set(5, 10, 5);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.width = 2048;
   sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.camera.near = 0.5;
+  sunLight.shadow.camera.far = 50;
+  sunLight.shadow.camera.left = -10;
+  sunLight.shadow.camera.right = 10;
+  sunLight.shadow.camera.top = 10;
+  sunLight.shadow.camera.bottom = -10;
   scene.add(sunLight);
+
+  // Add a point light above the whiteboard for highlight
+  const pointLight = new THREE.PointLight(0xffffff, 0.8, 10);
+  pointLight.position.set(0, 2, 0);
+  pointLight.castShadow = true;
+  scene.add(pointLight);
 
   const objectsGroup = new THREE.Group();
   scene.add(objectsGroup);
-
-  // Removed the cubes and spheres
 
   window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;

@@ -1,9 +1,10 @@
 import * as THREE from "three";
+import { ArrowHelper } from "three";
 import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPerHand, getConeVisualsPerHand, isPinchingState } from "./gestureControl.js";
 
 const NUM_HANDS_TO_DETECT = 2;
 const EMA_ALPHA = 0.35;
-const Z_MAGNIFICATION_FACTOR = 5;
+const Z_MAGNIFICATION_FACTOR = 2;
 const Z_OFFSET_FOR_DIRECT_DEPTH = 0;
 
 const HAND_CONNECTIONS = [
@@ -17,6 +18,8 @@ const HAND_CONNECTIONS = [
 const landmarkVisualsPerHand = [];
 const connectionVisualsPerHand = [];
 const smoothedLandmarksPerHand = [];
+const zAxisVisualsPerHand = []; // Only blue z-arrow per hand
+const laserVisualsPerHand = []; // Laser line per hand
 let lastVideoTime = -1;
 let results = undefined;
 let fpsCounterElement;
@@ -29,8 +32,8 @@ export async function setupHandTracking(scene) {
   for (let i = 0; i < NUM_HANDS_TO_DETECT; i++) {
     const currentHandSpheres = [];
     const currentSmoothedLandmarks = [];
-    const sharedMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-    const sphereGeometry = new THREE.SphereGeometry(0.02, 16, 16);
+    const sharedMaterial = new THREE.MeshBasicMaterial({ color: 0xbffbff, transparent: true, opacity: 0.5});
+    const sphereGeometry = new THREE.SphereGeometry(0.03, 16, 16); // 0.02 original
 
     for (let j = 0; j < 21; j++) {
       const sphereMaterial = (j === 4 || j === 8) ? new THREE.MeshBasicMaterial({ color: 0x00ffff }) : sharedMaterial;
@@ -44,17 +47,47 @@ export async function setupHandTracking(scene) {
     smoothedLandmarksPerHand.push(currentSmoothedLandmarks);
 
     const currentHandConnections = [];
-    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
+    const capsuleGeometry = new THREE.CapsuleGeometry(0.04, 1, 8, 16); // Thick radius 0.03, base length 1
+    const capsuleMaterial = new THREE.MeshBasicMaterial({ color: 0xbffbff, transparent: true, opacity: 0.5 });
     for (const connection of HAND_CONNECTIONS) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
-      const line = new THREE.Line(geometry, lineMaterial);
-      line.visible = false;
-      scene.add(line);
-      currentHandConnections.push(line);
+      const capsule = new THREE.Mesh(capsuleGeometry, capsuleMaterial);
+      capsule.visible = false;
+      scene.add(capsule);
+      currentHandConnections.push(capsule);
     }
     connectionVisualsPerHand.push(currentHandConnections);
+
+    // Z-axis visual (blue)
+    const zDir = new THREE.Vector3(0, 0, 1);
+    const zArrow = new ArrowHelper(zDir, new THREE.Vector3(), 0.2, 0x0000ff);
+    zArrow.visible = false;
+    scene.add(zArrow);
+    zAxisVisualsPerHand.push(zArrow);
+
+    // Laser visual
+    const laserMaterial = new THREE.LineBasicMaterial({ color: 0xff00ff });
+    const laserGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    const laserLine = new THREE.Line(laserGeometry, laserMaterial);
+    laserLine.visible = false;
+    scene.add(laserLine);
+    laserVisualsPerHand.push(laserLine);
   }
+}
+
+export function getWristPosition(handIndex) {
+  if (handIndex >= 0 && handIndex < smoothedLandmarksPerHand.length) {
+    return smoothedLandmarksPerHand[handIndex][0].clone();
+  }
+  return new THREE.Vector3();
+}
+
+export function getForwardDirection(handIndex) {
+  if (handIndex >= 0 && handIndex < smoothedLandmarksPerHand.length) {
+    const wrist = smoothedLandmarksPerHand[handIndex][0];
+    const middleBase = smoothedLandmarksPerHand[handIndex][9];
+    return middleBase.clone().sub(wrist).normalize();
+  }
+  return new THREE.Vector3(0, 0, -1);
 }
 
 export function predictWebcam(video, handLandmarker) {
@@ -78,7 +111,9 @@ export function predictWebcam(video, handLandmarker) {
   // Hide visuals for all hands by default
   for (let i = 0; i < NUM_HANDS_TO_DETECT; i++) {
     landmarkVisualsPerHand[i].forEach((sphere) => (sphere.visible = false));
-    connectionVisualsPerHand[i].forEach((line) => (line.visible = false));
+    connectionVisualsPerHand[i].forEach((capsule) => (capsule.visible = false));
+    zAxisVisualsPerHand[i].visible = false;
+    laserVisualsPerHand[i].visible = false;
   }
 
   if (results && results.landmarks && results.landmarks.length > 0) {
@@ -103,9 +138,13 @@ export function predictWebcam(video, handLandmarker) {
       const currentLandmarkSpheres = landmarkVisualsPerHand[handIndex];
       const currentHandConnections = connectionVisualsPerHand[handIndex];
       const currentSmoothedLandmarks = smoothedLandmarksPerHand[handIndex];
+      const currentZArrow = zAxisVisualsPerHand[handIndex];
+      const currentLaser = laserVisualsPerHand[handIndex];
 
       currentLandmarkSpheres.forEach((sphere) => (sphere.visible = true));
-      currentHandConnections.forEach((line) => (line.visible = true));
+      currentHandConnections.forEach((capsule) => (capsule.visible = true));
+      currentZArrow.visible = true;
+      currentLaser.visible = true;
 
       for (let i = 0; i < currentHandLandmarks.length; i++) {
         const rawLandmark = currentHandLandmarks[i];
@@ -122,16 +161,43 @@ export function predictWebcam(video, handLandmarker) {
         const connection = HAND_CONNECTIONS[i];
         const startLandmarkIndex = connection[0];
         const endLandmarkIndex = connection[1];
-        const line = currentHandConnections[i];
-        const positions = line.geometry.attributes.position.array;
-        positions[0] = currentSmoothedLandmarks[startLandmarkIndex].x;
-        positions[1] = currentSmoothedLandmarks[startLandmarkIndex].y;
-        positions[2] = currentSmoothedLandmarks[startLandmarkIndex].z;
-        positions[3] = currentSmoothedLandmarks[endLandmarkIndex].x;
-        positions[4] = currentSmoothedLandmarks[endLandmarkIndex].y;
-        positions[5] = currentSmoothedLandmarks[endLandmarkIndex].z;
-        line.geometry.attributes.position.needsUpdate = true;
+        const capsule = currentHandConnections[i];
+        const startPos = currentSmoothedLandmarks[startLandmarkIndex];
+        const endPos = currentSmoothedLandmarks[endLandmarkIndex];
+
+        // Position midway
+        capsule.position.copy(startPos.clone().add(endPos).multiplyScalar(0.5));
+
+        // Direction and length
+        const direction = endPos.clone().sub(startPos).normalize();
+        const length = endPos.distanceTo(startPos);
+
+        // Scale (CapsuleGeometry is along y, length in y)
+        capsule.scale.set(1, length, 1);
+
+        // Rotation: align y-axis with direction
+        const up = new THREE.Vector3(0, 1, 0);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+        capsule.quaternion.copy(quaternion);
       }
+
+      // Update z-axis visual (blue arrow)
+      const wrist = currentSmoothedLandmarks[0];
+      const forward = getForwardDirection(handIndex);
+      currentZArrow.position.copy(wrist);
+      currentZArrow.setDirection(forward);
+      currentZArrow.setLength(0.2);
+
+      // Update laser visual
+      const laserEnd = wrist.clone().add(forward.multiplyScalar(10)); // Use forward for alignment
+      const positions = currentLaser.geometry.attributes.position.array;
+      positions[0] = wrist.x;
+      positions[1] = wrist.y;
+      positions[2] = wrist.z;
+      positions[3] = laserEnd.x;
+      positions[4] = laserEnd.y;
+      positions[5] = laserEnd.z;
+      currentLaser.geometry.attributes.position.needsUpdate = true;
 
       // Update raycast for this hand
       updateRaycast(handIndex);
