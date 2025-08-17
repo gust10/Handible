@@ -58,14 +58,14 @@ export async function setupHandTracking(scene) {
   const panelMaterial = new THREE.MeshPhysicalMaterial({
     color: 0xbffbff, // white blue
     transmission: 0.9, // High transmission for glass effect
-    opacity: 0.8, // Slight transparency
-    metalness: 0.0,
-    roughness: 0.1, // Low roughness for smooth shine
-    ior: 1.5, // Index of refraction for glass realism
-    thickness: 0.01, // Thin glass
-    envMapIntensity: 1.0, // Reflect environment if you have an env map
-    clearcoat: 1.0, // Add clearcoat for extra gloss
-    clearcoatRoughness: 0.1,
+    // opacity: 0.8, // Slight transparency
+    // metalness: 0.0,
+    // roughness: 0.1, // Low roughness for smooth shine
+    // ior: 1.5, // Index of refraction for glass realism
+    // thickness: 0.01, // Thin glass
+    // envMapIntensity: 1.0, // Reflect environment if you have an env map
+    // clearcoat: 1.0, // Add clearcoat for extra gloss
+    // clearcoatRoughness: 0.1,
     side: THREE.DoubleSide
   });
   uiPanel = new THREE.Mesh(panelGeometry, panelMaterial);
@@ -208,10 +208,10 @@ function updatePalmSphere(handIndex, smoothedLandmarks, isFacing) {
 
     palmSphere.position.copy(palmCenter);
     palmSphere.visible = true;
-    console.log(`Hand ${handIndex} palm sphere toggled ON at:`, palmCenter);
+    // console.log(`Hand ${handIndex} palm sphere toggled ON at:`, palmCenter);
   } else {
     palmSphere.visible = false;
-    console.log(`Hand ${handIndex} palm sphere toggled OFF`);
+    // console.log(`Hand ${handIndex} palm sphere toggled OFF`);
   }
 }
 
@@ -236,14 +236,14 @@ function updateUIPanel(smoothedLandmarks, isFacing) {
       uiPanel.rotation.x += UI_PANEL_TILT; // Add slight tilt
 
       uiPanel.visible = true;
-      console.log("UI panel toggled ON");
+      // console.log("UI panel toggled ON");
     }
   } else {
     consecutiveFacingFalse++;
     consecutiveFacingTrue = 0;
     if (consecutiveFacingFalse >= FACING_FALSE_THRESHOLD) {
       uiPanel.visible = false;
-      console.log("UI panel toggled OFF");
+      // console.log("UI panel toggled OFF");
     }
   }
 }
@@ -286,11 +286,11 @@ export function predictWebcam(video, handLandmarker) {
       const pinchingNow = isPinching2D(currentHandLandmarks, video.videoWidth, video.videoHeight);
 
       if (pinchingNow && !isPinchingState[handIndex]) {
-        console.log(`Hand ${handIndex} PINCH START`);
+        // console.log(`Hand ${handIndex} PINCH START`);
         isPinchingState[handIndex] = true;
         onPinchStart(handIndex, handedness, isUIActive); // Pass handedness and isUIActive
       } else if (!pinchingNow && isPinchingState[handIndex]) {
-        console.log(`Hand ${handIndex} PINCH END`);
+        // console.log(`Hand ${handIndex} PINCH END`);
         isPinchingState[handIndex] = false;
         onPinchEnd(handIndex);
       }

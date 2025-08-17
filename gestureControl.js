@@ -1,4 +1,3 @@
-// Updated gestureControl.js
 import * as THREE from "three";
 import { getSceneObjects } from "./threeSetup.js";
 import { getHandTrackingData } from "./handTracking.js";
@@ -44,7 +43,7 @@ export function initGestureControl(scene, numHands) {
   }
 }
 
-export function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPixels = 35) {
+export function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPixels = 45) {
   const thumbTip = rawLandmarks[4];
   const indexTip = rawLandmarks[8];
   const thumbX = thumbTip.x * videoWidth;
@@ -54,12 +53,12 @@ export function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPix
   const dx = thumbX - indexX;
   const dy = thumbY - indexY;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  console.log(`Pinch distance hand ${rawLandmarks.handIndex || 'unknown'}: ${distance}`); // Debug pinch detection
+  // console.log(`Pinch distance hand ${rawLandmarks.handIndex || 'unknown'}: ${distance}`); // Debug pinch detection
   return distance < thresholdPixels;
 }
 
 export function onPinchStart(handIndex, handedness, isUIActive) {
-  console.log(`Hand ${handIndex} pinch START`);
+  // console.log(`Hand ${handIndex} pinch START, isUIActive: ${isUIActive}, handedness: ${handedness}`);
   const { scene } = getSceneObjects();
   const { smoothedLandmarksPerHand } = getHandTrackingData();
   const handLandmarks = smoothedLandmarksPerHand[handIndex];
@@ -68,7 +67,7 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
 
   // Skip if cursor disabled
   if (isUIActive && handedness === 'Left') {
-    console.log(`Hand ${handIndex} skipped: left hand with UI active`);
+    // console.log(`Hand ${handIndex} skipped: left hand with UI active`);
     return; // Disable for left hand when UI open
   }
 
@@ -88,7 +87,7 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
       buttons = panel.children.filter(obj => obj.userData.isUIButton);
       normal = new THREE.Vector3(0, 0, 1).applyQuaternion(panel.quaternion).normalize();
     } else {
-      console.log(`Hand ${handIndex} UI panel not found`);
+      // console.log(`Hand ${handIndex} UI panel not found`);
       return;
     }
   } else {
@@ -97,7 +96,7 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
       buttons = wall.children.filter(obj => obj.userData.isButton);
       normal = new THREE.Vector3(0, 0, 1).applyQuaternion(wall.quaternion).normalize();
     } else {
-      console.log(`Hand ${handIndex} whiteboard not found`);
+      // console.log(`Hand ${handIndex} whiteboard not found`);
       return;
     }
   }
@@ -107,7 +106,7 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
     const buttonWorldPos = new THREE.Vector3();
     button.getWorldPosition(buttonWorldPos);
     const distanceToButton = cone.position.distanceTo(buttonWorldPos);
-    console.log(`Hand ${handIndex} distance to button: ${distanceToButton}`);
+    // console.log(`Hand ${handIndex} distance to button: ${distanceToButton}`);
     if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
       // Press effect: move button "down" along its local z (towards board/panel)
       button.position.z -= 0.05; // Depress by half height
@@ -161,6 +160,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
   // Skip if cursor disabled
   if (isUIActive && handedness === 'Left') {
+    // console.log(`Hand ${handIndex} skipped: left hand with UI active`);
     cone.visible = false;
     return; // Disable for left hand when UI open
   }
@@ -184,7 +184,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
       raycaster.set(wrist, adjustedDirection);
       const intersects = raycaster.intersectObject(panel);
       if (intersects.length === 0) {
-        console.log(`Hand ${handIndex} no intersection with UI panel`);
+        console.log(`Hand ${handIndex} no UI panel intersection`);
         cone.visible = false;
         return;
       }
@@ -209,7 +209,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
       cone.visible = true;
 
-      // Check for hover on buttons and apply effects; also find closest hovered button for snapping
+      // Check for hover on UI buttons and apply effects; also find closest hovered button for snapping
       const buttons = panel.children.filter(obj => obj.userData.isUIButton);
       let hoveredButton = null;
       let minDistance = Infinity;
@@ -217,7 +217,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
         const buttonWorldPos = new THREE.Vector3();
         button.getWorldPosition(buttonWorldPos);
         const distanceToButton = cone.position.distanceTo(buttonWorldPos);
-        console.log(`Hand ${handIndex} distance to UI button: ${distanceToButton}`);
+        // console.log(`Hand ${handIndex} distance to UI button: ${distanceToButton}`);
         if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
           if (isPinchingState[handIndex]) {
             // Press handled in onPinchStart
@@ -245,7 +245,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
       return; // Exit after handling UI cursor
     } else {
-      console.log(`Hand ${handIndex} UI panel not found`);
+      // console.log(`Hand ${handIndex} UI panel not found`);
       cone.visible = false;
       return;
     }
@@ -278,7 +278,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
     cone.visible = true;
 
-    // Check for hover on buttons and apply effects; also find closest hovered button for snapping
+    // Check for hover on whiteboard buttons and apply effects; also find closest hovered button for snapping
     const buttons = wall.children.filter(obj => obj.userData.isButton);
     let hoveredButton = null;
     let minDistance = Infinity;
@@ -286,12 +286,11 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
       const buttonWorldPos = new THREE.Vector3();
       button.getWorldPosition(buttonWorldPos);
       const distanceToButton = cone.position.distanceTo(buttonWorldPos);
-      console.log(`Hand ${handIndex} distance to whiteboard button: ${distanceToButton}`);
+      // console.log(`Hand ${handIndex} distance to whiteboard button: ${distanceToButton}`);
       if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
         if (isPinchingState[handIndex]) {
           // Press handled in onPinchStart
         } else {
-          // Hover effect: slight scale up and color change
           button.scale.set(1.1, 1.1, 1.1);
           button.material.color.set(button.userData.hoverColor);
         }
@@ -300,7 +299,6 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
           hoveredButton = button;
         }
       } else {
-        // Reset hover
         button.scale.set(1, 1, 1);
         button.material.color.set(button.userData.defaultColor);
       }
@@ -312,7 +310,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
       const knobWorldPos = new THREE.Vector3();
       knob.getWorldPosition(knobWorldPos);
       const distanceToKnob = cone.position.distanceTo(knobWorldPos);
-      console.log(`Hand ${handIndex} distance to knob: ${distanceToKnob}`);
+      // console.log(`Hand ${handIndex} distance to knob: ${distanceToKnob}`);
       if (distanceToKnob < KNOB_HOVER_THRESHOLD) {
         if (isPinchingState[handIndex]) {
           // Grab handled in onPinchStart
@@ -330,16 +328,14 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
     if (hoveredButton) {
       const buttonWorldPos = new THREE.Vector3();
       hoveredButton.getWorldPosition(buttonWorldPos);
-      // Tip at button top: buttonPos + normal * (button height / 2)
       const buttonTop = buttonWorldPos.clone().add(normal.multiplyScalar(0.05)); // 0.1 height / 2 = 0.05
-      // Base = buttonTop + normal * CONE_HEIGHT
       cone.position.copy(buttonTop).add(normal.multiplyScalar(CONE_HEIGHT));
     }
   }
 
   // If the grabbed object is the knob, constrain its movement horizontally along the slider track
   if (grabbedObject && grabbedObject.userData.isKnob && grabbedObject.userData.handIndex === handIndex) {
-    raycaster.set(wrist, smoothedRayDirections[handIndex]);
+    raycaster.set(cone.position, smoothedRayDirections[handIndex]); // Use cursor position for raycasting
     const intersects = raycaster.intersectObject(wall);
     if (intersects.length > 0) {
       const intersectPoint = intersects[0].point;
@@ -348,25 +344,26 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
       localPos.y = -0.5; // Fixed y position of slider
       localPos.z = 0.1; // Fixed z position (above board)
       grabbedObject.position.copy(localPos.applyMatrix4(wall.matrixWorld));
-      console.log(`Hand ${handIndex} moved knob to x: ${localPos.x}`);
+      // console.log(`Hand ${handIndex} moved knob to x: ${localPos.x}`);
     } else {
-      console.log(`Hand ${handIndex} no intersection with wall for knob movement`);
+      // console.log(`Hand ${handIndex} no intersection with wall for knob movement`);
     }
   }
 
-  // If an object is grabbed (non-knob), move it to the ray origin
+  // If an object is grabbed (non-knob), move it to the cursor position
   if (grabbedObject && !grabbedObject.userData.isKnob && grabbedObject.userData.handIndex === handIndex) {
-    grabbedObject.position.copy(smoothedRayOrigins[handIndex]);
+    grabbedObject.position.copy(cone.position);
+    // console.log(`Hand ${handIndex} moved non-knob object to: ${cone.position.x}, ${cone.position.y}, ${cone.position.z}`);
   }
 }
 
 function grabNearestObject(handIndex) {
   const { scene } = getSceneObjects();
   const { smoothedLandmarksPerHand, landmarkVisualsPerHand, connectionVisualsPerHand } = getHandTrackingData();
-  const handLandmarks = smoothedLandmarksPerHand[handIndex];
+  const cone = coneVisualsPerHand[handIndex];
   
-  // Use wrist position as ray origin for grabbing
-  const rayOrigin = handLandmarks[0].clone(); // Wrist (landmark 0)
+  // Use cursor position (cone.position) as ray origin to align with visual feedback
+  const rayOrigin = cone.position.clone();
   const rayDirection = smoothedRayDirections[handIndex];
   raycaster.set(rayOrigin, rayDirection);
 
@@ -377,6 +374,7 @@ function grabNearestObject(handIndex) {
       !connectionVisualsPerHand.flat().includes(obj) &&
       !obj.userData.isWall // Exclude the whiteboard from grabbing
   );
+  // console.log(`Hand ${handIndex} selectable objects: ${selectableObjects.length}`);
   const intersects = raycaster.intersectObjects(selectableObjects, true); // true for recursive (children)
 
   console.log(`Hand ${handIndex} grab attempt: ${intersects.length} intersections found`);
@@ -390,10 +388,12 @@ function grabNearestObject(handIndex) {
     grabbedObject.userData.handIndex = handIndex; // Track which hand grabbed it
     if (grabbedObject.userData.isKnob) {
       grabbedObject.material.color.set(grabbedObject.userData.activeColor);
-      console.log(`Hand ${handIndex} grabbed knob`);
+      // console.log(`Hand ${handIndex} grabbed knob`);
     } else {
-      console.log(`Hand ${handIndex} grabbed object: ${grabbedObject.name || grabbedObject.id}`);
+      // console.log(`Hand ${handIndex} grabbed object: ${grabbedObject.name || grabbedObject.id}`);
     }
+  } else {
+    // console.log(`Hand ${handIndex} no object intersected for grabbing`);
   }
 }
 
@@ -402,11 +402,11 @@ function releaseObject(handIndex) {
     grabbedObject.scale.copy(grabbedObject.userData.originalScale || grabbedObject.scale); // Restore scale
     if (grabbedObject.userData.isKnob) {
       grabbedObject.material.color.set(grabbedObject.userData.defaultColor);
-      console.log(`Hand ${handIndex} released knob`);
+      // console.log(`Hand ${handIndex} released knob`);
     }
     grabbedObject.userData.handIndex = null; // Clear hand association
     grabbedObject = null;
-    console.log(`Hand ${handIndex} released object`);
+    // console.log(`Hand ${handIndex} released object`);
   }
 }
 
