@@ -1,7 +1,9 @@
+// Updated handTracking.js
 import * as THREE from "three";
 import { ArrowHelper } from "three";
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPerHand, getConeVisualsPerHand, isPinchingState } from "./gestureControl.js";
-import { getSceneObjects } from "./threeSetup.js"; // Added import
+import { getSceneObjects } from "./threeSetup.js";
 
 const NUM_HANDS_TO_DETECT = 2;
 const EMA_ALPHA = 0.35;
@@ -35,21 +37,35 @@ const PALM_SPHERE_RADIUS = 0.1; // Size of sphere in palm
 let uiPanel = null;
 const UI_PANEL_WIDTH = 1.0;
 const UI_PANEL_HEIGHT = 0.6;
-const UI_PANEL_OFFSET = new THREE.Vector3(0.6, 0.1, -0.5); // Offset to right side (adjust x for distance)
+const UI_PANEL_OFFSET = new THREE.Vector3(0.6, 0.3, -0.5); // x=0.6 (right), y=0.3 (up), z=-0.5 (back)
 const UI_PANEL_TILT = -Math.PI / 12; // Slight tilt downwards
 const smoothedUIPosition = new THREE.Vector3(); // For smooth following
+
+// New: Anti-flicker for UI panel
+let consecutiveFacingTrue = 0;
+let consecutiveFacingFalse = 0;
+const FACING_TRUE_THRESHOLD = 5; // ~167ms at 30fps for show delay
+const FACING_FALSE_THRESHOLD = 15; // ~500ms at 30fps for hide delay
+
+// Moved: Define isUIActive at module level
+let isUIActive = false;
 
 export async function setupHandTracking(scene) {
   fpsCounterElement = document.getElementById("fps-counter");
 
   // Create UI panel once
-  const panelGeometry = new THREE.PlaneGeometry(UI_PANEL_WIDTH, UI_PANEL_HEIGHT);
-  const panelMaterial = new THREE.MeshStandardMaterial({
-    color: 0x333333, // Dark gray for clean aesthetic
-    roughness: 0.2,
-    metalness: 0.1,
-    transparent: true, 
-    opacity: 0.5,
+  const panelGeometry = new RoundedBoxGeometry(UI_PANEL_WIDTH, UI_PANEL_HEIGHT, 0.05, 8, 0.5); // Width, height, depth, segments, radius for rounded corners
+  const panelMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0xbffbff, // white blue
+    transmission: 0.9, // High transmission for glass effect
+    opacity: 0.8, // Slight transparency
+    metalness: 0.0,
+    roughness: 0.1, // Low roughness for smooth shine
+    ior: 1.5, // Index of refraction for glass realism
+    thickness: 0.01, // Thin glass
+    envMapIntensity: 1.0, // Reflect environment if you have an env map
+    clearcoat: 1.0, // Add clearcoat for extra gloss
+    clearcoatRoughness: 0.1,
     side: THREE.DoubleSide
   });
   uiPanel = new THREE.Mesh(panelGeometry, panelMaterial);
@@ -58,7 +74,8 @@ export async function setupHandTracking(scene) {
   uiPanel.receiveShadow = true;
   scene.add(uiPanel);
 
-  // Add buttons to UI panel
+  // Comment out button creation for UI panel
+  /*
   const buttonPositions = [
     { x: -0.3, y: 0, color: 0xff0000 }, // Red button
     { x: 0, y: 0, color: 0x00ff00 }, // Green button
@@ -75,8 +92,14 @@ export async function setupHandTracking(scene) {
     const button = new THREE.Mesh(buttonGeometry, buttonMaterial);
     button.position.set(pos.x, pos.y, 0.03); // Slightly above panel
     button.rotation.x = Math.PI / 2;
+    button.userData.isUIButton = true; // Mark as UI button for interaction
+    button.userData.defaultColor = pos.color;
+    button.userData.hoverColor = 0xffff00; // Yellow for hover
+    button.userData.activeColor = 0xffa500; // Orange for pressed
+    button.userData.defaultPosition = button.position.clone(); // Store default position for reset
     uiPanel.add(button);
   });
+  */
 
   for (let i = 0; i < NUM_HANDS_TO_DETECT; i++) {
     const currentHandSpheres = [];
@@ -192,28 +215,36 @@ function updatePalmSphere(handIndex, smoothedLandmarks, isFacing) {
   }
 }
 
-// New: Function to update UI panel for left hand
+// New: Function to update UI panel for left hand with anti-flicker
 function updateUIPanel(smoothedLandmarks, isFacing) {
   if (!uiPanel) return;
 
   if (isFacing) {
-    // Hand center for positioning (e.g., wrist)
-    const handCenter = smoothedLandmarks[0].clone(); // Wrist
+    consecutiveFacingTrue++;
+    consecutiveFacingFalse = 0;
+    if (consecutiveFacingTrue >= FACING_TRUE_THRESHOLD) {
+      // Hand center for positioning (e.g., wrist)
+      const handCenter = smoothedLandmarks[0].clone(); // Wrist
 
-    // Smooth position
-    smoothedUIPosition.lerp(handCenter.add(UI_PANEL_OFFSET), EMA_ALPHA);
+      // Smooth position
+      smoothedUIPosition.lerp(handCenter.add(UI_PANEL_OFFSET), EMA_ALPHA);
 
-    uiPanel.position.copy(smoothedUIPosition);
+      uiPanel.position.copy(smoothedUIPosition);
 
-    // Face camera with slight tilt
-    uiPanel.lookAt(getSceneObjects().camera.position); // Face camera
-    uiPanel.rotation.x += UI_PANEL_TILT; // Add slight tilt
+      // Face camera with slight tilt
+      uiPanel.lookAt(getSceneObjects().camera.position); // Face camera
+      uiPanel.rotation.x += UI_PANEL_TILT; // Add slight tilt
 
-    uiPanel.visible = true;
-    console.log("UI panel toggled ON");
+      uiPanel.visible = true;
+      console.log("UI panel toggled ON");
+    }
   } else {
-    uiPanel.visible = false;
-    console.log("UI panel toggled OFF");
+    consecutiveFacingFalse++;
+    consecutiveFacingTrue = 0;
+    if (consecutiveFacingFalse >= FACING_FALSE_THRESHOLD) {
+      uiPanel.visible = false;
+      console.log("UI panel toggled OFF");
+    }
   }
 }
 
@@ -245,15 +276,19 @@ export function predictWebcam(video, handLandmarker) {
   }
   if (uiPanel) uiPanel.visible = false; // Hide UI panel by default
 
+  // Reset UI active flag per frame
+  isUIActive = false;
+
   if (results && results.landmarks && results.landmarks.length > 0) {
     for (let handIndex = 0; handIndex < results.landmarks.length; handIndex++) {
+      const handedness = results.handedness[handIndex][0].categoryName; // 'Left' or 'Right'
       const currentHandLandmarks = results.landmarks[handIndex];
       const pinchingNow = isPinching2D(currentHandLandmarks, video.videoWidth, video.videoHeight);
 
       if (pinchingNow && !isPinchingState[handIndex]) {
         console.log(`Hand ${handIndex} PINCH START`);
         isPinchingState[handIndex] = true;
-        onPinchStart(handIndex);
+        onPinchStart(handIndex, handedness, isUIActive); // Pass handedness and isUIActive
       } else if (!pinchingNow && isPinchingState[handIndex]) {
         console.log(`Hand ${handIndex} PINCH END`);
         isPinchingState[handIndex] = false;
@@ -329,17 +364,17 @@ export function predictWebcam(video, handLandmarker) {
       currentLaser.geometry.attributes.position.needsUpdate = true;
 
       // New: Detect palm facing camera and toggle/update sphere visibility
-      const handedness = results.handedness[handIndex][0].categoryName; // 'Left' or 'Right'
       const facingNow = isPalmFacingCamera(handIndex, currentSmoothedLandmarks, handedness);
       updatePalmSphere(handIndex, currentSmoothedLandmarks, facingNow);
 
-      // New: If left hand and facing, update UI panel
+      // New: If left hand and facing, update UI panel and set UI active
       if (handedness === 'Left') {
         updateUIPanel(currentSmoothedLandmarks, facingNow);
+        isUIActive = facingNow;
       }
 
       // Update raycast for this hand
-      updateRaycast(handIndex);
+      updateRaycast(handIndex, handedness, isUIActive);
     }
   }
 

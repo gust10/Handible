@@ -66,13 +66,40 @@ export function setupThreeScene() {
     button.castShadow = true;
   });
 
+  // Add 3D horizontal slider below the buttons
+  const sliderTrackGeometry = new THREE.BoxGeometry(3, 0.1, 0.1); // Wide horizontal track
+  const sliderTrackMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0x888888, // Gray color
+    roughness: 0.4,
+    metalness: 0.5
+  });
+  const sliderTrack = new THREE.Mesh(sliderTrackGeometry, sliderTrackMaterial);
+  sliderTrack.position.set(0, -0.5, 0.05); // Below buttons, slightly above board
+  sliderTrack.castShadow = true;
+  wall.add(sliderTrack);
+
+  const knobGeometry = new THREE.SphereGeometry(0.15, 32, 32); // Knob as sphere
+  const knobMaterial = new THREE.MeshStandardMaterial({ 
+    color: 0xffffff, // White color
+    roughness: 0.4,
+    metalness: 0.5
+  });
+  const knob = new THREE.Mesh(knobGeometry, knobMaterial);
+  knob.position.set(0, -0.5, 0.05 + 0.05); // Center on track, slightly above
+  knob.userData.isKnob = true;
+  knob.userData.defaultColor = 0xffffff;
+  knob.userData.hoverColor = 0xffff00; // Yellow for hover
+  knob.userData.activeColor = 0xffa500; // Orange for active (grabbed)
+  knob.castShadow = true;
+  wall.add(knob);
+
   camera = new THREE.PerspectiveCamera(
     75,
     window.innerWidth / window.innerHeight,
     0.1,
     1000
   );
-  camera.position.set(0, 0.5, 2); // Slightly higher to see the tilt better
+  camera.position.set(0, 0.0, 1); // Slightly higher to see the tilt better
 
   const canvas = document.getElementById("threeCanvas");
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
