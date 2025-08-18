@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { getSceneObjects } from "./threeSetup.js";
-import { getHandTrackingData } from "./handTracking.js";
+import { getSceneObjects } from "./sceneManager.js";
+import { cleanupHandTracking, getHandTrackingData, setupHandTracking } from "./handTracking.js";
 
 const raycaster = new THREE.Raycaster();
 let grabbedObject = null;
@@ -112,6 +112,12 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
       button.position.z -= 0.05; // Depress by half height
       button.material.color.set(button.userData.activeColor);
       console.log("Button pressed:", button);
+      
+      // Trigger scene switch if this is the designated button
+      if (button.userData.action === 'switchToTableScene') {
+        switchToTableScene();
+      }
+      
       triggeredButton = true;
     }
   });
@@ -408,6 +414,43 @@ function releaseObject(handIndex) {
     grabbedObject = null;
     // console.log(`Hand ${handIndex} released object`);
   }
+}
+
+async function switchToTableScene() {
+  let { scene, camera, renderer, controls } = getSceneObjects();
+
+  // Dispose old scene resources
+  scene.traverse(child => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach(mat => mat.dispose());
+      else child.material.dispose();
+    }
+  });
+  while (scene.children.length > 0) {
+    scene.remove(scene.children[0]);
+  }
+  renderer.dispose();
+  controls.dispose();
+
+  // Clear hand tracking state (visuals arrays, counters, etc.)
+  cleanupHandTracking();
+
+  // Clear gesture control state (visuals and smoothed arrays)
+  coneVisualsPerHand.length = 0;
+  smoothedRayOrigins.length = 0;
+  smoothedRayDirections.length = 0;
+  isPinchingState.fill(false);
+  grabbedObject = null; // Clear any grabbed reference
+
+  // Dynamically import and set up new scene
+  const { setupTableScene } = await import('./tableSetup.js');
+  setupTableScene();
+
+  // Re-setup hand tracking and gestures with new scene
+  const { scene: newScene } = getSceneObjects();
+  await setupHandTracking(newScene);
+  initGestureControl(newScene, 2); // Re-add cones and reset gesture state
 }
 
 export function getRayVisualsPerHand() {

@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { ArrowHelper } from "three";
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPerHand, getConeVisualsPerHand, isPinchingState } from "./gestureControl.js";
-import { getSceneObjects } from "./threeSetup.js";
+import { getSceneObjects } from "./sceneManager.js";
 
 const NUM_HANDS_TO_DETECT = 2;
 const EMA_ALPHA = 0.35;
@@ -75,11 +75,11 @@ export async function setupHandTracking(scene) {
   scene.add(uiPanel);
 
   // Comment out button creation for UI panel
-  /*
+  
   const buttonPositions = [
-    { x: -0.3, y: 0, color: 0xff0000 }, // Red button
+    //{ x: -0.3, y: 0, color: 0xff0000 }, // Red button
     { x: 0, y: 0, color: 0x00ff00 }, // Green button
-    { x: 0.3, y: 0, color: 0x0000ff } // Blue button
+    //{ x: 0.3, y: 0, color: 0x0000ff } // Blue button
   ];
 
   buttonPositions.forEach(pos => {
@@ -97,9 +97,10 @@ export async function setupHandTracking(scene) {
     button.userData.hoverColor = 0xffff00; // Yellow for hover
     button.userData.activeColor = 0xffa500; // Orange for pressed
     button.userData.defaultPosition = button.position.clone(); // Store default position for reset
+    button.userData.action = 'switchToTableScene'; // Add this to identify the button for scene switch
     uiPanel.add(button);
   });
-  */
+  
 
   for (let i = 0; i < NUM_HANDS_TO_DETECT; i++) {
     const currentHandSpheres = [];
@@ -248,6 +249,20 @@ function updateUIPanel(smoothedLandmarks, isFacing) {
   }
 }
 
+export function cleanupHandTracking() {
+  landmarkVisualsPerHand.length = 0;
+  connectionVisualsPerHand.length = 0;
+  smoothedLandmarksPerHand.length = 0;
+  zAxisVisualsPerHand.length = 0;
+  laserVisualsPerHand.length = 0;
+  palmSpheresPerHand.length = 0;
+  consecutiveFacingTrue = 0;
+  consecutiveFacingFalse = 0;
+  isUIActive = false;
+  uiPanel = null; // Reset UI panel reference (will be recreated)
+  smoothedUIPosition.set(0, 0, 0); // Reset smoothed position
+}
+
 export function predictWebcam(video, handLandmarker) {
   if (!handLandmarker || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
     requestAnimationFrame(() => predictWebcam(video, handLandmarker));
@@ -268,10 +283,15 @@ export function predictWebcam(video, handLandmarker) {
 
   // Hide visuals for all hands by default
   for (let i = 0; i < NUM_HANDS_TO_DETECT; i++) {
+    if (i >= landmarkVisualsPerHand.length || !landmarkVisualsPerHand[i]) continue;
     landmarkVisualsPerHand[i].forEach((sphere) => (sphere.visible = false));
+    if (i >= connectionVisualsPerHand.length || !connectionVisualsPerHand[i]) continue;
     connectionVisualsPerHand[i].forEach((capsule) => (capsule.visible = false));
+    if (i >= zAxisVisualsPerHand.length || !zAxisVisualsPerHand[i]) continue;
     zAxisVisualsPerHand[i].visible = false;
+    if (i >= laserVisualsPerHand.length || !laserVisualsPerHand[i]) continue;
     laserVisualsPerHand[i].visible = false;
+    if (i >= palmSpheresPerHand.length || !palmSpheresPerHand[i]) continue;
     palmSpheresPerHand[i].visible = false; // Hide palm spheres by default
   }
   if (uiPanel) uiPanel.visible = false; // Hide UI panel by default
@@ -281,6 +301,7 @@ export function predictWebcam(video, handLandmarker) {
 
   if (results && results.landmarks && results.landmarks.length > 0) {
     for (let handIndex = 0; handIndex < results.landmarks.length; handIndex++) {
+      if (handIndex >= landmarkVisualsPerHand.length || !landmarkVisualsPerHand[handIndex]) continue;
       const handedness = results.handedness[handIndex][0].categoryName; // 'Left' or 'Right'
       const currentHandLandmarks = results.landmarks[handIndex];
       const pinchingNow = isPinching2D(currentHandLandmarks, video.videoWidth, video.videoHeight);
@@ -294,6 +315,8 @@ export function predictWebcam(video, handLandmarker) {
         isPinchingState[handIndex] = false;
         onPinchEnd(handIndex);
       }
+
+      if (handIndex >= landmarkVisualsPerHand.length) continue;
 
       const tipColor = pinchingNow ? 0xff0000 : 0x00ffff;
       landmarkVisualsPerHand[handIndex][4].material.color.set(tipColor);
