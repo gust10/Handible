@@ -33,6 +33,8 @@ const KNOB_HOVER_THRESHOLD = 0.6; // Increased for easier knob grabbing
 const CHESSBOARD_SIZE = 8; // 8x8 grid
 const CHESSBOARD_SCALE_FACTOR = 4; // Adjust sensitivity to cover the chessboard; higher = more grid coverage
 const HIGHLIGHT_COLOR = 0xffff00; // Yellow for snapped square
+const ORANGE_COLOR = 0xffa500; // Orange for selected square
+export const lastSnappedSquarePerHand = Array(2).fill(null); // {row, col, square} per hand
 
 // Initialize ray and cone visuals for each hand
 export function initGestureControl(scene, numHands) {
@@ -385,6 +387,9 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
           grabbedObject.position.copy(cone.position);
         }
       }
+      // Store last snapped for pinch
+      lastSnappedSquarePerHand[handIndex] = { row: clampedRow, col: clampedCol, square };
+      console.log(lastSnappedSquarePerHand[handIndex]);
     } else {
       // Fallback: Basic table cursor if no chessboard
       const cursorPoint = handLandmarks[3];

@@ -1,17 +1,25 @@
 {
   "name": "handible",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "0.0.1",  
+  "description": "A library for hand gesture detection using MediaPipe and Three.js",  
+  "main": "index.js", 
+  "type": "module",  
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "vite", 
+    "build": "vite build", 
+    "preview": "vite preview" 
+  },
+  "keywords": ["hand-tracking", "gestures", "threejs", "mediapipe"],  
+  "author": "gust10",  
+  "license": "MIT",  
+  "dependencies": {
+    "three": "^0.177.0"  
+  },
+  "peerDependencies": {
+    "@mediapipe/tasks-vision": "^0.10.0" 
   },
   "devDependencies": {
-    "vite": "^6.3.5"
+    "vite": "^6.3.5" 
   },
-  "dependencies": {
-    "three": "^0.177.0"
-  }
+  "private": false  
 }

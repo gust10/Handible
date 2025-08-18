@@ -120,6 +120,25 @@ export function setupTableScene() {
   chessboardGroup.position.set(0, 0, 0); // Centered on table top
   tableTop.add(chessboardGroup); // Add to table top (moves with it if needed)
 
+  // New: Add objects on specific squares (e.g., chess pieces as cylinders)
+  const piecePositions = [
+    { row: 0, col: 0, color: 0xff0000 }, // Red piece on (0,0)
+    { row: 7, col: 7, color: 0xff0000 } // Red piece on (7,7)
+  ];
+
+  piecePositions.forEach(pos => {
+    const squareIndex = pos.row * 8 + pos.col;
+    const targetSquare = chessboardGroup.children[squareIndex];
+    if (targetSquare) {
+      const pieceGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.15, 32); // Small cylinder for piece
+      const pieceMaterial = new THREE.MeshStandardMaterial({ color: pos.color });
+      const piece = new THREE.Mesh(pieceGeometry, pieceMaterial);
+      piece.position.copy(targetSquare.position.clone().add(new THREE.Vector3(0, 0.08, 0))); // Above square center
+      piece.castShadow = true;
+      chessboardGroup.add(piece);
+    }
+  });
+
   // Set table-specific offsets (resets every time this scene is loaded)
   handConfig.xScale = 2; // Example: Wider x spread
   handConfig.yScale = -2; // Example: Taller y (flipped)
