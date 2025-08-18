@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { setSceneObjects } from "./sceneManager.js";
+import { handConfig } from "./handTracking.js";
 
 export function setupTableScene() {
   let scene, camera, renderer, controls; // Add this declaration line
@@ -18,7 +19,7 @@ export function setupTableScene() {
   });
   const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -1.5;
+  floor.position.y = -2.5;
   floor.receiveShadow = true;
   scene.add(floor);
 
@@ -33,6 +34,7 @@ export function setupTableScene() {
   tableTop.position.set(0, -1.3, -1);
   tableTop.castShadow = true;
   tableTop.receiveShadow = true;
+  tableTop.userData.isTable = true;
   scene.add(tableTop);
 
   // Optionally add table legs (e.g., 4 cylinders)
@@ -50,7 +52,7 @@ export function setupTableScene() {
   });
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 0.0, 1);
+  camera.position.set(0, 1.3, 0.8);
 
   const canvas = document.getElementById("threeCanvas");
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -91,6 +93,39 @@ export function setupTableScene() {
   pointLight.position.set(0, 2, 0);
   pointLight.castShadow = true;
   scene.add(pointLight);
+
+  // New: Add chessboard on table top
+  const chessboardGroup = new THREE.Group();
+  chessboardGroup.isChessboard = true;
+  const squareSize = 0.2; // Each square 0.2x0.2
+  const chessboardSize = squareSize * 8; // 1.6x1.6
+  const halfSize = chessboardSize / 2;
+
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const color = (row + col) % 2 === 0 ? 0xffffff : 0x000000; // Alternating white/black
+      const squareGeometry = new THREE.PlaneGeometry(squareSize, squareSize);
+      const squareMaterial = new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide });
+      const square = new THREE.Mesh(squareGeometry, squareMaterial);
+      square.position.set(
+        (col * squareSize) - halfSize + squareSize / 2, // Center x
+        0.101, // Slightly above table top (thickness 0.2 / 2 = 0.1 + epsilon)
+        (row * squareSize) - halfSize + squareSize / 2 // Center z
+      );
+      square.rotation.x = -Math.PI / 2; // Flat on table (plane defaults to xy)
+      square.userData.defaultColor = color; // Store for reset
+      chessboardGroup.add(square);
+    }
+  }
+  chessboardGroup.position.set(0, 0, 0); // Centered on table top
+  tableTop.add(chessboardGroup); // Add to table top (moves with it if needed)
+
+  // Set table-specific offsets (resets every time this scene is loaded)
+  handConfig.xScale = 2; // Example: Wider x spread
+  handConfig.yScale = -2; // Example: Taller y (flipped)
+  handConfig.zMagnification = 2; // Example: Less z depth exaggeration
+  handConfig.zOffset = 0; // Example: Push hands further back in z
+  handConfig.rotationOffset.set(- Math.PI / 12, 0, 0); // Example: 45-degree y rotation
 
   setSceneObjects({ scene, camera, renderer, controls });
 }

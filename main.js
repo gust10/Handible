@@ -6,6 +6,7 @@ import { setupThreeScene } from "./threeSetup.js";
 import { initHandLandmarker, startWebcam } from "./mediaPipeSetup.js";
 import { setupHandTracking } from "./handTracking.js";
 import { initGestureControl } from './gestureControl.js';
+import { setupTableScene } from "./tableSetup.js";
 
 
 
@@ -19,7 +20,8 @@ async function init() {
   document.getElementById("ema-alpha-display").textContent = 0.35;
 
   // Initialize Three.js
-  setupThreeScene();
+  // setupThreeScene();
+  setupTableScene();
 
   // Add resize listener once, using current objects
   window.addEventListener("resize", onResize);

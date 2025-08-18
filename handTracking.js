@@ -5,10 +5,17 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { isPinching2D, onPinchStart, onPinchEnd, updateRaycast, getRayVisualsPerHand, getConeVisualsPerHand, isPinchingState } from "./gestureControl.js";
 import { getSceneObjects } from "./sceneManager.js";
 
+
 const NUM_HANDS_TO_DETECT = 2;
 const EMA_ALPHA = 0.35;
-const Z_MAGNIFICATION_FACTOR = 2;
-const Z_OFFSET_FOR_DIRECT_DEPTH = 0;
+
+export const handConfig = {
+  xScale: 2,
+  yScale: -2,
+  zMagnification: 2,
+  zOffset: 0,
+  rotationOffset: new THREE.Euler(0, 0, 0) // Default no rotation
+};
 
 const HAND_CONNECTIONS = [
   [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
@@ -30,7 +37,7 @@ let fpsCounterElement;
 let frameCount = 0;
 let lastFpsUpdateTime = performance.now();
 
-const PALM_FACING_THRESHOLD = 0.7; // Adjust based on testing; assumes normal.z > this for facing camera
+const PALM_FACING_THRESHOLD = 0.5; // Adjust based on testing; assumes normal.z > this for facing camera
 const PALM_SPHERE_RADIUS = 0.1; // Size of sphere in palm
 
 // New: UI panel for left hand
@@ -208,6 +215,10 @@ function updatePalmSphere(handIndex, smoothedLandmarks, isFacing) {
       .divideScalar(5);
 
     palmSphere.position.copy(palmCenter);
+    // const palmVec = palmCenter.clone().sub(wrist);
+    // palmVec.applyQuaternion(quat);
+    // palmCenter = wrist.clone().add(palmVec);
+    // palmSpheresPerHand[handIndex].position.copy(palmCenter);
     palmSphere.visible = true;
     // console.log(`Hand ${handIndex} palm sphere toggled ON at:`, palmCenter);
   } else {
@@ -296,6 +307,15 @@ export function predictWebcam(video, handLandmarker) {
   }
   if (uiPanel) uiPanel.visible = false; // Hide UI panel by default
 
+  // New: Reset chessboard highlights if present
+  const scene = getSceneObjects().scene;
+  const chessboard = scene.getObjectByProperty('isChessboard', true); // Recursive find
+  if (chessboard) {
+    chessboard.children.forEach(square => {
+      square.material.color.set(square.userData.defaultColor);
+    });
+  }
+
   // Reset UI active flag per frame
   isUIActive = false;
 
@@ -333,15 +353,43 @@ export function predictWebcam(video, handLandmarker) {
       currentZArrow.visible = true;
       currentLaser.visible = true;
 
+      // New: Quaternion from config rotation (computed once per hand for efficiency)
+      const tiltQuat = new THREE.Quaternion().setFromEuler(handConfig.rotationOffset);
+
+      // Smoothing landmarks
       for (let i = 0; i < currentHandLandmarks.length; i++) {
         const rawLandmark = currentHandLandmarks[i];
-        // Revert to original limited range for hand visuals (small size)
-        const targetX = (1.0 - rawLandmark.x - 0.5) * 2;
-        const targetY = (rawLandmark.y - 0.5) * -2;
-        const targetZ = rawLandmark.z * Z_MAGNIFICATION_FACTOR + Z_OFFSET_FOR_DIRECT_DEPTH;
+
+        // New: Center and rotate raw coordinates as a vector
+        const rawVec = new THREE.Vector3(
+          rawLandmark.x - 0.5,
+          rawLandmark.y - 0.5,
+          rawLandmark.z
+        );
+        rawVec.applyQuaternion(tiltQuat);
+
+        // Updated: Use configurable variables for position calculation
+        const targetX = (1.0 - rawLandmark.x - 0.5) * handConfig.xScale;
+        const targetY = (rawLandmark.y - 0.5) * handConfig.yScale;
+        const targetZ = rawLandmark.z * handConfig.zMagnification + handConfig.zOffset;
+
         const currentPosition = new THREE.Vector3(targetX, targetY, targetZ);
         currentSmoothedLandmarks[i].lerp(currentPosition, EMA_ALPHA);
         currentLandmarkSpheres[i].position.copy(currentSmoothedLandmarks[i]);
+
+        // currentLandmarkSpheres[i].rotation.copy(handConfig.rotationOffset);
+
+        // Apply rotation to sphere
+        // currentLandmarkSpheres[i].rotation.copy(handConfig.rotationOffset);
+      }
+
+      const wrist = currentSmoothedLandmarks[0].clone(); // Center for rotation
+      const quat = new THREE.Quaternion().setFromEuler(handConfig.rotationOffset); // Convert Euler to Quaternion
+      for (let i = 0; i < currentSmoothedLandmarks.length; i++) {
+        const vec = currentSmoothedLandmarks[i].clone().sub(wrist); // Vector from wrist
+        vec.applyQuaternion(quat); // Rotate the vector
+        currentSmoothedLandmarks[i] = wrist.clone().add(vec); // New position
+        currentLandmarkSpheres[i].position.copy(currentSmoothedLandmarks[i]); // Update sphere position
       }
 
       for (let i = 0; i < HAND_CONNECTIONS.length; i++) {
@@ -366,10 +414,10 @@ export function predictWebcam(video, handLandmarker) {
         const up = new THREE.Vector3(0, 1, 0);
         const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
         capsule.quaternion.copy(quaternion);
+        // capsule.quaternion.multiply(new THREE.Quaternion().setFromEuler(handConfig.rotationOffset));
       }
 
       // Update z-axis visual (blue arrow)
-      const wrist = currentSmoothedLandmarks[0];
       const forward = getForwardDirection(handIndex);
       currentZArrow.position.copy(wrist);
       currentZArrow.setDirection(forward);

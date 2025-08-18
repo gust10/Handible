@@ -17,6 +17,9 @@ const CONE_RADIUS = 0.05; // Radius of the cone base
 const CONE_HEIGHT = 0.1; // Height of the cone
 const WHITEBOARD_WIDTH = 5; // Matches whiteboard width in threeSetup.js
 const WHITEBOARD_HEIGHT = 3; // Matches whiteboard height in threeSetup.js
+const TABLE_WIDTH = 3;
+const TABLE_DEPTH = 2;
+const TABLE_CURSOR_SCALE_FACTOR = 2.5; // Adjust as needed; higher = more coverage on table
 const UI_PANEL_WIDTH = 1.0;
 const UI_PANEL_HEIGHT = 0.6;
 const CURSOR_SCALE_FACTOR = 2.5; // Adjust as needed to fit webcam FOV to whiteboard; higher = more coverage
@@ -26,6 +29,10 @@ const UI_CURSOR_THRESHOLD = 1.5; // Distance threshold for right hand to UI pane
 const UI_CURSOR_SENSITIVITY = 1.0; // Controls sensitivity of wrist rotation for UI cursor
 const UI_CURSOR_ROTATION_OFFSET = -Math.PI / 6; // Rotation offset only for UI panel cursor
 const KNOB_HOVER_THRESHOLD = 0.6; // Increased for easier knob grabbing
+
+const CHESSBOARD_SIZE = 8; // 8x8 grid
+const CHESSBOARD_SCALE_FACTOR = 4; // Adjust sensitivity to cover the chessboard; higher = more grid coverage
+const HIGHLIGHT_COLOR = 0xffff00; // Yellow for snapped square
 
 // Initialize ray and cone visuals for each hand
 export function initGestureControl(scene, numHands) {
@@ -259,6 +266,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
   // Original whiteboard cursor logic
   const wall = scene.children.find(obj => obj.userData.isWall);
+  const table = scene.children.find(obj => obj.userData.isTable);
   if (wall) {
     // Use landmark 3 (thumb IP) for cursor position
     const cursorPoint = handLandmarks[3];
@@ -336,6 +344,66 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
       hoveredButton.getWorldPosition(buttonWorldPos);
       const buttonTop = buttonWorldPos.clone().add(normal.multiplyScalar(0.05)); // 0.1 height / 2 = 0.05
       cone.position.copy(buttonTop).add(normal.multiplyScalar(CONE_HEIGHT));
+    }
+  } else if (table) {
+    // New: Check for chessboard first (snapping/highlighting takes priority)
+    const chessboard = scene.getObjectByProperty('isChessboard', true); // Recursive find
+    if (chessboard) {
+      console.log("chessboard found for hand", handIndex);
+      const cursorPoint = handLandmarks[3]; // Thumb IP
+      const scaledX = cursorPoint.x * CHESSBOARD_SCALE_FACTOR;
+      const scaledZ = -cursorPoint.y * CHESSBOARD_SCALE_FACTOR; // Negated for vertical direction
+
+      // Map to grid 0-7
+      const col = Math.floor((scaledX + 1) * (CHESSBOARD_SIZE / 2));
+      const row = Math.floor((scaledZ + 1) * (CHESSBOARD_SIZE / 2));
+      const clampedCol = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, col));
+      const clampedRow = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, row));
+
+      // Get square and its world position
+      const squareIndex = clampedRow * CHESSBOARD_SIZE + clampedCol;
+      const square = chessboard.children[squareIndex];
+      if (square) {
+        const worldPos = new THREE.Vector3();
+        square.getWorldPosition(worldPos);
+
+        // Highlight the square
+        square.material.color.set(HIGHLIGHT_COLOR);
+
+        // Set cone position to square center (above surface)
+        const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(table.quaternion).normalize();
+        cone.position.copy(worldPos);
+
+        // Cone direction: point upwards
+        const coneDirection = normal;
+        cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
+
+        cone.visible = true;
+
+        // If grabbedObject, move it to snapped position
+        if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
+          grabbedObject.position.copy(cone.position);
+        }
+      }
+    } else {
+      // Fallback: Basic table cursor if no chessboard
+      const cursorPoint = handLandmarks[3];
+      const scaledX = cursorPoint.x * TABLE_CURSOR_SCALE_FACTOR;
+      const scaledZ = -cursorPoint.y * TABLE_CURSOR_SCALE_FACTOR;
+      const clampedX = Math.max(-TABLE_WIDTH / 2, Math.min(TABLE_WIDTH / 2, scaledX));
+      const clampedZ = Math.max(-TABLE_DEPTH / 2, Math.min(TABLE_DEPTH / 2, scaledZ));
+
+      const localPos = new THREE.Vector3(clampedX, 0.1, clampedZ);
+      const worldPos = localPos.applyMatrix4(table.matrixWorld);
+
+      const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(table.quaternion).normalize();
+      cone.position.copy(worldPos);
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+      cone.visible = true;
+
+      if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
+        grabbedObject.position.copy(cone.position);
+      }
     }
   }
 

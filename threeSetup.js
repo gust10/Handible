@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { setSceneObjects } from "./sceneManager.js";
+import { handConfig } from "./handTracking.js";
 
 export function setupThreeScene() {
   let scene, camera, renderer, controls; // Add this declaration line
@@ -139,6 +140,13 @@ export function setupThreeScene() {
 
   const objectsGroup = new THREE.Group();
   scene.add(objectsGroup);
+  
+  // Set whiteboard-specific offsets (defaults; modify object properties)
+  handConfig.xScale = 2;
+  handConfig.yScale = -2;
+  handConfig.zMagnification = 2;
+  handConfig.zOffset = 0;
+  handConfig.rotationOffset.set(0, 0, 0); // No rotation
 
   setSceneObjects({ scene, camera, renderer, controls });
 }
