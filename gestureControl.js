@@ -24,7 +24,7 @@ const UI_PANEL_WIDTH = 1.0;
 const UI_PANEL_HEIGHT = 0.6;
 const CURSOR_SCALE_FACTOR = 2.5; // Adjust as needed to fit webcam FOV to whiteboard; higher = more coverage
 const BUTTON_HOVER_THRESHOLD = 0.4; // Increased to account for 3D button size
-const BUTTON_SNAP_OFFSET = 0.06; // Offset for cursor snap above button surface
+const UIBUTTON_HOVER_THRESHOLD = 0.2; // Threshold for UI button hover
 const UI_CURSOR_THRESHOLD = 1.5; // Distance threshold for right hand to UI panel
 const UI_CURSOR_SENSITIVITY = 1.0; // Controls sensitivity of wrist rotation for UI cursor
 const UI_CURSOR_ROTATION_OFFSET = -Math.PI / 6; // Rotation offset only for UI panel cursor
@@ -52,7 +52,8 @@ export function initGestureControl(scene, numHands) {
   }
 }
 
-export function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPixels = 45) {
+// returns boolean whether the hand is pinching
+export function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPixels = 30) {
   const thumbTip = rawLandmarks[4];
   const indexTip = rawLandmarks[8];
   const thumbX = thumbTip.x * videoWidth;
@@ -62,7 +63,6 @@ export function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPix
   const dx = thumbX - indexX;
   const dy = thumbY - indexY;
   const distance = Math.sqrt(dx * dx + dy * dy);
-  // console.log(`Pinch distance hand ${rawLandmarks.handIndex || 'unknown'}: ${distance}`); // Debug pinch detection
   return distance < thresholdPixels;
 }
 
@@ -84,19 +84,19 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
   let normal = new THREE.Vector3();
   let triggeredButton = false;
 
+  // UI active
   if (isUIActive && handedness === 'Right') {
-    const panel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff);
+    const panel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff); // color matches UI panel
     if (panel) {
       const wrist = handLandmarks[0];
       const distanceToPanel = wrist.distanceTo(panel.position);
       if (distanceToPanel >= UI_CURSOR_THRESHOLD) {
-        console.log(`Hand ${handIndex} too far from UI panel: ${distanceToPanel}`);
         return; // Skip if right hand not close to UI
       }
       buttons = panel.children.filter(obj => obj.userData.isUIButton);
       normal = new THREE.Vector3(0, 0, 1).applyQuaternion(panel.quaternion).normalize();
     } else {
-      // console.log(`Hand ${handIndex} UI panel not found`);
+      // UI panel not found
       return;
     }
   } else {
@@ -115,7 +115,6 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
     const buttonWorldPos = new THREE.Vector3();
     button.getWorldPosition(buttonWorldPos);
     const distanceToButton = cone.position.distanceTo(buttonWorldPos);
-    // console.log(`Hand ${handIndex} distance to button: ${distanceToButton}`);
     if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
       // Press effect: move button "down" along its local z (towards board/panel)
       button.position.z -= 0.05; // Depress by half height
@@ -185,7 +184,6 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
     if (panel) {
       const distanceToPanel = wrist.distanceTo(panel.position);
       if (distanceToPanel >= UI_CURSOR_THRESHOLD) {
-        console.log(`Hand ${handIndex} too far from UI panel: ${distanceToPanel}`);
         cone.visible = false;
         return; // Skip if right hand not close to UI
       }
@@ -199,9 +197,8 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
       raycaster.set(wrist, adjustedDirection);
       const intersects = raycaster.intersectObject(panel);
       if (intersects.length === 0) {
-        console.log(`Hand ${handIndex} no UI panel intersection`);
         cone.visible = false;
-        return;
+        return; //no UI panel intersection
       }
       let intersectPoint = intersects[0].point;
 
@@ -233,7 +230,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
         button.getWorldPosition(buttonWorldPos);
         const distanceToButton = cone.position.distanceTo(buttonWorldPos);
         // console.log(`Hand ${handIndex} distance to UI button: ${distanceToButton}`);
-        if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
+        if (distanceToButton < UIBUTTON_HOVER_THRESHOLD) {
           if (isPinchingState[handIndex]) {
             // Press handled in onPinchStart
           } else {
@@ -260,7 +257,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
       return; // Exit after handling UI cursor
     } else {
-      // console.log(`Hand ${handIndex} UI panel not found`);
+      // UI panel not found
       cone.visible = false;
       return;
     }
@@ -344,7 +341,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
     if (hoveredButton) {
       const buttonWorldPos = new THREE.Vector3();
       hoveredButton.getWorldPosition(buttonWorldPos);
-      const buttonTop = buttonWorldPos.clone().add(normal.multiplyScalar(0.05)); // 0.1 height / 2 = 0.05
+      const buttonTop = buttonWorldPos.clone().add(normal.multiplyScalar(1)); // 0.1 height / 2 = 0.05 f
       cone.position.copy(buttonTop).add(normal.multiplyScalar(CONE_HEIGHT));
     }
   } else if (table) {
@@ -518,6 +515,7 @@ async function switchToTableScene() {
 
   // Dynamically import and set up new scene
   const { setupTableScene } = await import('./tableSetup.js');
+  
   setupTableScene();
 
   // Re-setup hand tracking and gestures with new scene

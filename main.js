@@ -21,7 +21,8 @@ async function init() {
 
   // Initialize Three.js
   // setupThreeScene();
-  setupTableScene();
+  // setupTableScene();
+  setupThreeScene(); 
 
   // Add resize listener once, using current objects
   window.addEventListener("resize", onResize);
