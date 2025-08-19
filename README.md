@@ -29,13 +29,18 @@
   </a>
   <img src="https://img.shields.io/badge/JavaScript-ES6+-darkblue?style=round-square&logo=javascript&logoColor" alt="JavaScript"/>
   <img src="https://img.shields.io/badge/Web-Project-purple?style=round-square&logo=google-chrome&logoColor=white" alt="Web Project"/>
+  <img src="https://img.shields.io/badge/framework-Three%2Ejs-brown" alt="Three.js Badge" />
 </p>
 
 ---
 
-
+### 🔗 Quick Links
+| Demo | Website | Documentation | npm |
+|------|---------|---------------|-----|
+| [💻 Try Demo!](https://demo.com) | [🌐 Website](https://handible.com) | [📖 Docs](https://doc.com) | [📦 npm](https://npm.com) |
 
 <!-- (banner or demo video) -->
+
 
 # Handible: Hand Tracking Magic for Virtual 3D Experiences in Web ✨
 
