@@ -2,10 +2,10 @@
 <p align="center" style="font-size: 18px;"><b></b></p>
 
 <p align="center">
-  <img src="./assets/logo_2.png" alt="Handible Logo" width="200"/>
+  <img src="./assets/logo.png" alt="Handible Logo" width="200"/>
 </p>
 
-<h1 align="center">✨ Handible ✨</h1>
+<h1 align="center">H a n d i b l e</h1>
 
 <p align="center">
   <i>An intuitive hand tracking + gesture control library for virtual web experience. 🪄</i>
