@@ -400,6 +400,7 @@ export function predictWebcam(video, handLandmarker) {
         const startPos = currentSmoothedLandmarks[startLandmarkIndex];
         const endPos = currentSmoothedLandmarks[endLandmarkIndex];
 
+        
         // Position midway
         capsule.position.copy(startPos.clone().add(endPos).multiplyScalar(0.5));
 
