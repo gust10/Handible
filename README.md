@@ -2,7 +2,7 @@
 <div align="center">
   <img src="./assets/logo.png" alt="Handible Logo" width="120"/>
   
-  # 🔮 Handible
+  # H a n d i b l e
   
   **Revolutionary hand tracking and gesture control for the web**
   
@@ -25,7 +25,7 @@
 
 <div align="center">
   
-  ### ✨ **60fps Real-time** • 🎯 **21 Hand Points** • 🌐 **Web-based** • 🚀 **Zero Setup**
+  ### ✨ **60fps Real-time** • 🌐 **Web-based** • 🚀 **Zero Setup**
   
 </div>
 
@@ -50,7 +50,7 @@ TODO: Add demo GIF/video here
 
 ## 🌟 Why Handible?
 
-**Handible** makes hand tracking accessible to every developer. No expensive hardware, no complex setup—just your webcam and imagination.
+**Handible** makes hand tracking accessible to every developer. No expensive hardware, no complex setup—just your webcam and imagination. Super easy to use.
 
 ```javascript
 import { startGestureControl, isPinching2D } from 'handible';
@@ -87,15 +87,8 @@ if (isPinching2D(0)) {
 ### 🛠️ **Developer Experience**
 - **📦 Zero Config** - Works out of the box with Three.js
 - **🔧 Modular API** - Use only what you need
-- **📚 TypeScript Support** - Full type definitions included
 - **🎨 Customizable** - Extensive styling and behavior options
 - **⚡ Performance Optimized** - GPU-accelerated tracking
-
-### 🌐 **Integration Ready**
-- **Three.js Native** - Seamless 3D scene integration
-- **React Compatible** - Works with React Three Fiber
-- **Framework Agnostic** - Use with any JavaScript framework
-- **Mobile Responsive** - Optimized for desktop and mobile
 
 ## 📦 Installation
 
