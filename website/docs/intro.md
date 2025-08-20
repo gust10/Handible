@@ -2,46 +2,24 @@
 sidebar_position: 1
 ---
 
-# Tutorial Intro
+# Introduction to Handible
 
-Let's discover **Docusaurus in less than 5 minutes**.
+Welcome to Handible, a powerful hand tracking and gesture control library for web applications. This library combines the power of MediaPipe's hand detection with Three.js to create immersive hand-based interactions.
 
-## Getting Started
+## What is Handible?
 
-Get started by **creating a new site**.
+Handible is a JavaScript library that enables:
+- Real-time hand tracking and gesture detection
+- 3D interaction with virtual objects
+- UI controls through hand gestures
+- Multiple hand support
+- Easy integration with Three.js scenes
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+## Quick Navigation
 
-### What you'll need
+- [Getting Started](getting-started.md) - Set up your first Handible project
+- [Core Concepts](core-concepts.md) - Learn about the fundamental features
+- [Advanced Features](advanced-features.md) - Explore advanced capabilities
+- [API Reference](api-reference.md) - Detailed API documentation
 
-- [Node.js](https://nodejs.org/en/download/) version 18.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
-
-## Generate a new site
-
-Generate a new Docusaurus site using the **classic template**.
-
-The classic template will automatically be added to your project after you run the command:
-
-```bash
-npm init docusaurus@latest my-website classic
-```
-
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
-
-The command also installs all necessary dependencies you need to run Docusaurus.
-
-## Start your site
-
-Run the development server:
-
-```bash
-cd my-website
-npm run start
-```
-
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
-
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
-
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+## Why Handible?
