@@ -4,32 +4,29 @@ import styles from './styles.module.css';
 
 const FeatureList = [
   {
-    title: 'Easy to Use',
+    title: 'Webcam-Based Interaction',
     Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Control 3D environments using only a standard webcam. MetaHands leverages MediaPipe for seamless hand tracking, making it accessible without specialized hardware.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
+    title: 'Real-Time 3D Control',
     Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Achieve smooth, real-time hand gesture recognition with up to 50 FPS using GPU acceleration. Interact with buttons, sliders, and chess pieces in virtual scenes.
       </>
     ),
   },
   {
-    title: 'Powered by React',
+    title: 'Modular and Extensible',
     Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Built with a modular architecture, MetaHands supports custom gestures and scenes. Extend it easily via callback systems and integrate with your Three.js projects.
       </>
     ),
   },
