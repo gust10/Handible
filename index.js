@@ -12,7 +12,15 @@ import {
   updateRaycast, 
   grabNearestObject, 
   getRayVisualsPerHand, 
-  getConeVisualsPerHand 
+  getConeVisualsPerHand,
+  SurfaceInteractionSystem,
+  isPinchingState,
+  lastSnappedSquarePerHand,
+  BUTTON_HOVER_THRESHOLD,
+  UIBUTTON_HOVER_THRESHOLD,
+  UI_CURSOR_THRESHOLD,
+  CHESSBOARD_SIZE,
+  HIGHLIGHT_COLOR
 } from "./gestureControl.js";
 import { 
   handConfig, 
@@ -37,7 +45,15 @@ export {
   updateRaycast, 
   grabNearestObject, 
   getRayVisualsPerHand, 
-  getConeVisualsPerHand 
+  getConeVisualsPerHand,
+  SurfaceInteractionSystem,
+  isPinchingState,
+  lastSnappedSquarePerHand,
+  BUTTON_HOVER_THRESHOLD,
+  UIBUTTON_HOVER_THRESHOLD,
+  UI_CURSOR_THRESHOLD,
+  CHESSBOARD_SIZE,
+  HIGHLIGHT_COLOR
 };
 export { 
   handConfig, 

@@ -13,7 +13,7 @@ let sceneCache = {};
 class SurfaceInteractionSystem {
   constructor() {
     this.surfaces = new Map();
-    this.hoveredButtons = new Map(); // Store hovered button per surface
+    this.hoveredButtons = new Map(); // Store hovered button per hand-surface combination
   }
 
   registerSurface(surface, config) {
@@ -37,15 +37,17 @@ class SurfaceInteractionSystem {
     return this.surfaces.get(surface.uuid)?.config;
   }
 
-  getHoveredButton(surface) {
-    return this.hoveredButtons.get(surface.uuid);
+  getHoveredButton(surface, handIndex) {
+    const key = `${surface.uuid}-${handIndex}`;
+    return this.hoveredButtons.get(key);
   }
 
-  setHoveredButton(surface, button) {
+  setHoveredButton(surface, handIndex, button) {
+    const key = `${surface.uuid}-${handIndex}`;
     if (button) {
-      this.hoveredButtons.set(surface.uuid, button);
+      this.hoveredButtons.set(key, button);
     } else {
-      this.hoveredButtons.delete(surface.uuid);
+      this.hoveredButtons.delete(key);
     }
   }
 
@@ -99,10 +101,10 @@ class SurfaceInteractionSystem {
 
   handleButtonInteractions(handIndex, cone, surface, buttons, threshold) {
     // Reset previously hovered button if it's no longer in the buttons list
-    const previousHovered = this.getHoveredButton(surface);
+    const previousHovered = this.getHoveredButton(surface, handIndex);
     if (previousHovered && !buttons.includes(previousHovered)) {
       this.resetButtonState(previousHovered);
-      this.setHoveredButton(surface, null);
+      this.setHoveredButton(surface, handIndex, null);
     }
 
     // Find closest button within threshold
@@ -132,7 +134,7 @@ class SurfaceInteractionSystem {
     }
 
     // Update hover state
-    this.setHoveredButton(surface, closestButton);
+    this.setHoveredButton(surface, handIndex, closestButton);
 
     // Update cone position if hovering over a button
     if (closestButton) {
@@ -237,6 +239,9 @@ class SurfaceInteractionSystem {
 
 // Create single instance of surface system
 const surfaceSystem = new SurfaceInteractionSystem();
+
+// Export surface system for advanced usage
+export { surfaceSystem as SurfaceInteractionSystem };
 
 // Visual elements arrays
 const rayVisualsPerHand = [];
@@ -450,10 +455,8 @@ function shouldSkipUIInteraction(handedness, isUIActive, wrist, panel) {
   
   if (handedness === 'Left') return true;
   
-  if (handedness === 'Right' && panel) {
-    const distanceToPanel = wrist.distanceTo(panel.position);
-    return distanceToPanel >= UI_CURSOR_THRESHOLD;
-  }
+  // Right hand should always be able to interact with UI panel when UI is active
+  if (handedness === 'Right') return false;
   
   return false;
 }
@@ -561,6 +564,9 @@ function handleButtonInteractions(handIndex, cone, parent, children, threshold) 
   let hoveredButton = null;
   let minDistance = Infinity;
 
+  // Track which buttons this specific hand is hovering over
+  const handHoverKey = `hand-${handIndex}`;
+
   buttons.forEach(button => {
     // Store original button position if not already stored
     if (!button.userData.defaultPosition) {
@@ -573,16 +579,24 @@ function handleButtonInteractions(handIndex, cone, parent, children, threshold) 
 
     if (distanceToButton < threshold) {
       if (!isPinchingState[handIndex]) {
-        button.scale.set(1.1, 1.1, 1.1);
-        button.material.color.set(button.userData.hoverColor || 0xffa500);
+        // Only set hover state if this hand is the closest to this button
+        if (!button.userData.hoveredByHand || button.userData.hoveredByHand === handHoverKey) {
+          button.scale.set(1.1, 1.1, 1.1);
+          button.material.color.set(button.userData.hoverColor || 0xffa500);
+          button.userData.hoveredByHand = handHoverKey;
+        }
       }
       if (distanceToButton < minDistance) {
         minDistance = distanceToButton;
         hoveredButton = button;
       }
     } else {
-      button.scale.set(1, 1, 1);
-      button.material.color.set(button.userData.defaultColor || 0xffffff);
+      // Only reset if this hand was the one hovering over this button
+      if (button.userData.hoveredByHand === handHoverKey) {
+        button.scale.set(1, 1, 1);
+        button.material.color.set(button.userData.defaultColor || 0xffffff);
+        delete button.userData.hoveredByHand;
+      }
     }
   });
 
@@ -860,7 +874,9 @@ function handleGrabbedObjectMovement(handIndex, cone) {
   if (grabbedObject && !grabbedObject.userData.isKnob && grabbedObject.userData.handIndex === handIndex) {
     grabbedObject.position.copy(cone.position);
   }
-}export function grabNearestObject(handIndex, handedness, isUIActive, triggeredButton) {
+}
+
+export function grabNearestObject(handIndex, handedness, isUIActive, triggeredButton) {
   if (isUIActive || triggeredButton) {
     return; // Internal check: Skip if UI or button context
   }
@@ -1021,3 +1037,12 @@ export function getRayVisualsPerHand() {
 export function getConeVisualsPerHand() {
   return coneVisualsPerHand;
 }
+
+// Export useful constants for configuration
+export {
+  BUTTON_HOVER_THRESHOLD,
+  UIBUTTON_HOVER_THRESHOLD,
+  UI_CURSOR_THRESHOLD,
+  CHESSBOARD_SIZE,
+  HIGHLIGHT_COLOR
+};

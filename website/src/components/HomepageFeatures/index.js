@@ -4,43 +4,49 @@ import styles from './styles.module.css';
 
 const FeatureList = [
   {
-    title: 'Webcam-Based Interaction',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    title: '🎥 Webcam-Based Magic',
+    icon: '🎯',
     description: (
       <>
-        Control 3D environments using only a standard webcam. MetaHands leverages MediaPipe for seamless hand tracking, making it accessible without specialized hardware.
+        Transform any standard webcam into a powerful 3D controller. Handible leverages cutting-edge MediaPipe technology for seamless hand tracking - no specialized hardware required.
       </>
     ),
+    gradient: 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
   },
   {
-    title: 'Real-Time 3D Control',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    title: '⚡ Real-Time Performance',
+    icon: '🚀',
     description: (
       <>
-        Achieve smooth, real-time hand gesture recognition with up to 50 FPS using GPU acceleration. Interact with buttons, sliders, and chess pieces in virtual scenes.
+        Experience buttery-smooth 60fps hand gesture recognition with GPU acceleration. Interact with buttons, sliders, and 3D objects with zero latency for truly immersive experiences.
       </>
     ),
+    gradient: 'linear-gradient(45deg, #f093fb 0%, #f5576c 100%)',
   },
   {
-    title: 'Modular and Extensible',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    title: '🔧 Modular & Extensible',
+    icon: '⚙️',
     description: (
       <>
-        Built with a modular architecture, MetaHands supports custom gestures and scenes. Extend it easily via callback systems and integrate with your Three.js projects.
+        Built with modern architecture, Handible seamlessly integrates with Three.js projects. Customize gestures, extend functionality, and create unique interactive experiences.
       </>
     ),
+    gradient: 'linear-gradient(45deg, #4facfe 0%, #00f2fe 100%)',
   },
 ];
 
-function Feature({Svg, title, description}) {
+function Feature({icon, title, description, gradient}) {
   return (
-    <div className={clsx('col col--4')}>
-      <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
-      </div>
-      <div className="text--center padding-horiz--md">
-        <Heading as="h3">{title}</Heading>
-        <p>{description}</p>
+    <div className={clsx('col col--4', styles.featureCard)}>
+      <div className={styles.cardContent} style={{ background: gradient }}>
+        <div className={styles.iconContainer}>
+          <div className={styles.featureIcon}>{icon}</div>
+        </div>
+        <div className={styles.cardBody}>
+          <Heading as="h3" className={styles.featureTitle}>{title}</Heading>
+          <p className={styles.featureDescription}>{description}</p>
+        </div>
+        <div className={styles.cardGlow}></div>
       </div>
     </div>
   );
@@ -50,10 +56,28 @@ export default function HomepageFeatures() {
   return (
     <section className={styles.features}>
       <div className="container">
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>
+            🌟 Why Developers <span className={styles.loveText}>Love</span> Handible
+          </h2>
+          <p className={styles.sectionSubtitle}>
+            Powerful features that make hand tracking accessible and effortless
+          </p>
+        </div>
         <div className="row">
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />
           ))}
+        </div>
+        
+        <div className={styles.techStack}>
+          <h3 className={styles.techTitle}>🛠️ Built with Modern Tech</h3>
+          <div className={styles.techBadges}>
+            <span className={styles.techBadge}>JavaScript</span>
+            <span className={styles.techBadge}>Three.js</span>
+            <span className={styles.techBadge}>MediaPipe</span>
+            <span className={styles.techBadge}>WebGL</span>
+          </div>
         </div>
       </div>
     </section>

@@ -4,6 +4,9 @@
  * work well for content-centric websites.
  */
 
+/* Import custom API documentation styles */
+@import './api-styles.css';
+
 /* You can override the default Infima variables here. */
 :root {
   --ifm-color-primary: #7C3AED; /* Vibrant purple for main elements */
@@ -27,4 +30,106 @@
   --ifm-color-primary-lighter: #DDD6FE;
   --ifm-color-primary-lightest: #EDE9FE;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Enhanced typography for better readability */
+.markdown h1 {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 800;
+  margin-bottom: 2rem;
+}
+
+.markdown h2 {
+  color: var(--ifm-color-primary);
+  border-bottom: 2px solid var(--ifm-color-primary-lighter);
+  padding-bottom: 0.5rem;
+  margin-top: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Enhanced code blocks */
+.prism-code {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Enhanced blockquotes */
+blockquote {
+  border-left: 4px solid var(--ifm-color-primary);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.05) 0%, rgba(167, 139, 250, 0.05) 100%);
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+}
+
+/* Enhanced tables */
+table {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Enhanced sidebar */
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--ifm-color-primary-lightest);
+}
+
+/* Enhanced navbar */
+.navbar {
+  box-shadow: 0 2px 16px rgba(124, 58, 237, 0.1);
+}
+
+/* Button enhancements */
+.button--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.button--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+}
+
+/* Search box styling */
+.DocSearch-Button {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
+  border: 2px solid var(--ifm-color-primary-lighter);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.DocSearch-Button:hover {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(167, 139, 250, 0.15) 100%);
+  border-color: var(--ifm-color-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.2);
+}
+
+.DocSearch-Button-Key {
+  background: var(--ifm-color-primary-lighter);
+  color: var(--ifm-color-primary-darkest);
+}
+
+/* Search modal styling */
+.DocSearch-Modal {
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(124, 58, 237, 0.15);
+}
+
+.DocSearch-SearchBar {
+  border-radius: 8px;
+}
+
+.DocSearch-Hit[aria-selected="true"] a {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
 }
