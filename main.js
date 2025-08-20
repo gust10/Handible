@@ -3,7 +3,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
 import { getSceneObjects } from "./sceneManager.js";
 import { setupThreeScene } from "./threeSetup.js";
-import { initHandLandmarker, startWebcam } from "./mediaPipeSetup.js";
+import { initializeMediaPipe } from "./mediaPipeSetup.js";
 import { setupHandTracking } from "./handTracking.js";
 import { initGestureControl } from './gestureControl.js';
 import { setupTableScene } from "./tableSetup.js";
@@ -20,7 +20,6 @@ async function init() {
   document.getElementById("ema-alpha-display").textContent = 0.35;
 
   // Initialize Three.js
-  // setupThreeScene();
   // setupTableScene();
   setupThreeScene(); 
 
@@ -29,14 +28,13 @@ async function init() {
 
   // Initialize MediaPipe HandLandmarker
   video = document.getElementById("webcamVideo");
-  handLandmarker = await initHandLandmarker();
+  handLandmarker = await await initializeMediaPipe(video); // New: Single call handles init and start
 
   // Setup hand tracking visualizations
   await setupHandTracking(getSceneObjects().scene);
   initGestureControl(getSceneObjects().scene, 2); // Pass scene and NUM_HANDS_TO_DETECT
 
   document.getElementById("loading-message").style.display = "none";
-  await startWebcam(video, handLandmarker);
   animate();
 }
 

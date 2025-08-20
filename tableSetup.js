@@ -135,6 +135,7 @@ export function setupTableScene() {
       const piece = new THREE.Mesh(pieceGeometry, pieceMaterial);
       piece.position.copy(targetSquare.position.clone().add(new THREE.Vector3(0, 0.08, 0))); // Above square center
       piece.castShadow = true;
+      piece.userData.isGrabbable = true; // Mark as grabbable
       chessboardGroup.add(piece);
     }
   });

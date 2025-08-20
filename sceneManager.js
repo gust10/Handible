@@ -8,5 +8,10 @@ export function setSceneObjects(newObjects) {
 }
 
 export function getSceneObjects() {
-  return { scene, camera, renderer, controls };
+  return {
+    scene: scene || null,
+    camera: camera || null,
+    renderer: renderer || null,
+    controls: controls || null
+  };
 }

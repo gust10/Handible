@@ -4,13 +4,14 @@ import { cleanupHandTracking, getHandTrackingData, setupHandTracking } from "./h
 
 const raycaster = new THREE.Raycaster();
 let grabbedObject = null;
+let sceneCache = {}; // New: Global cache for static objects (reset on scene switch)
 const rayVisualsPerHand = []; // Array to store ray visuals for each hand
 const coneVisualsPerHand = []; // Array to store cone visuals for each hand
 const smoothedRayOrigins = []; // Smoothed ray origin for each hand
 const smoothedRayDirections = []; // Smoothed ray direction for each hand
 export const isPinchingState = Array(2).fill(false); // Moved from handTracking.js
 const EMA_ALPHA = 0.35; // Match hand tracking smoothing
-const GRAB_SCALE_FACTOR = 1.2; // Scale grabbed object for visual feedback
+const GRAB_SCALE_FACTOR = 3; // Scale grabbed object for visual feedback
 const CLOSE_DISTANCE_THRESHOLD = 3.0; // Increased further to ensure interactions trigger
 const SPHERE_RADIUS = 0.05; // Size of the created sphere
 const CONE_RADIUS = 0.05; // Radius of the cone base
@@ -35,6 +36,18 @@ const CHESSBOARD_SCALE_FACTOR = 4; // Adjust sensitivity to cover the chessboard
 const HIGHLIGHT_COLOR = 0xffff00; // Yellow for snapped square
 const ORANGE_COLOR = 0xffa500; // Orange for selected square
 export const lastSnappedSquarePerHand = Array(2).fill(null); // {row, col, square} per hand
+
+let onPinchStartCallbacks = []; // New: Array for user callbacks
+let onPinchEndCallbacks = []; // New: Array for user callbacks
+
+// New: Simple registration functions
+export function registerOnPinchStart(callback) {
+  onPinchStartCallbacks.push(callback);
+}
+
+export function registerOnPinchEnd(callback) {
+  onPinchEndCallbacks.push(callback);
+}
 
 // Initialize ray and cone visuals for each hand
 export function initGestureControl(scene, numHands) {
@@ -67,6 +80,10 @@ export function isPinching2D(rawLandmarks, videoWidth, videoHeight, thresholdPix
 }
 
 export function onPinchStart(handIndex, handedness, isUIActive) {
+  // Call user callbacks
+  onPinchStartCallbacks.forEach(cb => cb(handIndex, handedness));
+
+  console.log("pinch Start", handIndex, handedness, isUIActive);
   // console.log(`Hand ${handIndex} pinch START, isUIActive: ${isUIActive}, handedness: ${handedness}`);
   const { scene } = getSceneObjects();
   const { smoothedLandmarksPerHand } = getHandTrackingData();
@@ -76,7 +93,7 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
 
   // Skip if cursor disabled
   if (isUIActive && handedness === 'Left') {
-    // console.log(`Hand ${handIndex} skipped: left hand with UI active`);
+    console.log(`Hand ${handIndex} skipped: left hand with UI active`);
     return; // Disable for left hand when UI open
   }
 
@@ -84,7 +101,7 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
   let normal = new THREE.Vector3();
   let triggeredButton = false;
 
-  // UI active
+  // right hand UI cursor logic
   if (isUIActive && handedness === 'Right') {
     const panel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff); // color matches UI panel
     if (panel) {
@@ -105,8 +122,13 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
       buttons = wall.children.filter(obj => obj.userData.isButton);
       normal = new THREE.Vector3(0, 0, 1).applyQuaternion(wall.quaternion).normalize();
     } else {
-      // console.log(`Hand ${handIndex} whiteboard not found`);
-      return;
+      const table = scene.children.find(obj => obj.userData.isTable);
+      if (table) {
+        buttons = table.children.filter(obj => obj.userData.isButton); // If buttons on table
+        normal = new THREE.Vector3(0, 1, 0).applyQuaternion(table.quaternion).normalize(); // Up for table
+      } else {
+        return; // No interactive surface
+      }
     }
   }
 
@@ -123,17 +145,16 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
       
       // Trigger scene switch if this is the designated button
       if (button.userData.action === 'switchToTableScene') {
-        switchToTableScene();
+        switchToScene('table');
       }
       
       triggeredButton = true;
     }
   });
 
-  // If no button triggered and on whiteboard, try grabbing nearest object (e.g., slider knob)
-  if (!triggeredButton && !isUIActive) {
-    grabNearestObject(handIndex);
-  }
+  
+  grabNearestObject(handIndex, handedness, isUIActive, triggeredButton); // Pass checks
+  
 
   // Reset buttons after press
   if (triggeredButton) {
@@ -147,8 +168,20 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
 }
 
 export function onPinchEnd(handIndex) {
+  // Call user callbacks
+  onPinchEndCallbacks.forEach(cb => cb(handIndex, handedness));
+
   console.log(`Hand ${handIndex} pinch END`);
   releaseObject(handIndex);
+}
+
+// New: Cache function (call in initGestureControl or on scene switch)
+function cacheSceneObjects(scene) {
+  sceneCache.wall = scene.children.find(obj => obj.userData.isWall);
+  sceneCache.table = scene.children.find(obj => obj.userData.isTable);
+  sceneCache.chessboard = scene.getObjectByProperty('isChessboard', true);
+  sceneCache.uiPanel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff);
+  console.log('Scene objects cached'); // Debug
 }
 
 export function updateRaycast(handIndex, handedness, isUIActive) {
@@ -348,7 +381,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
     // New: Check for chessboard first (snapping/highlighting takes priority)
     const chessboard = scene.getObjectByProperty('isChessboard', true); // Recursive find
     if (chessboard) {
-      console.log("chessboard found for hand", handIndex);
+      // console.log("chessboard found for hand", handIndex);
       const cursorPoint = handLandmarks[3]; // Thumb IP
       const scaledX = cursorPoint.x * CHESSBOARD_SCALE_FACTOR;
       const scaledZ = -cursorPoint.y * CHESSBOARD_SCALE_FACTOR; // Negated for vertical direction
@@ -381,12 +414,12 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
         // If grabbedObject, move it to snapped position
         if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
-          grabbedObject.position.copy(cone.position);
+          console.log(grabbedObject.position.y, worldPos.y, cone.position.y)
         }
       }
       // Store last snapped for pinch
       lastSnappedSquarePerHand[handIndex] = { row: clampedRow, col: clampedCol, square };
-      console.log(lastSnappedSquarePerHand[handIndex]);
+      // console.log(lastSnappedSquarePerHand[handIndex]);
     } else {
       // Fallback: Basic table cursor if no chessboard
       const cursorPoint = handLandmarks[3];
@@ -428,49 +461,85 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
   // If an object is grabbed (non-knob), move it to the cursor position
   if (grabbedObject && !grabbedObject.userData.isKnob && grabbedObject.userData.handIndex === handIndex) {
+    // HERE
+    // const offsetPosition = cone.position.clone().add(new THREE.Vector3(0, 0.8, 0)); // Lift by 0.15 (adjust for object height)
+    console.log(grabbedObject.position.y, cone.position.y)
     grabbedObject.position.copy(cone.position);
+    console.log(grabbedObject.position.y, cone.position.y)
+    // grabbedObject.position.copy(cone.position);
     // console.log(`Hand ${handIndex} moved non-knob object to: ${cone.position.x}, ${cone.position.y}, ${cone.position.z}`);
   }
 }
 
-function grabNearestObject(handIndex) {
+export function grabNearestObject(handIndex, handedness, isUIActive, triggeredButton) {
+  if (isUIActive || triggeredButton) {
+    return; // Internal check: Skip if UI or button context
+  }
+
   const { scene } = getSceneObjects();
   const { smoothedLandmarksPerHand, landmarkVisualsPerHand, connectionVisualsPerHand } = getHandTrackingData();
+  const handLandmarks = smoothedLandmarksPerHand[handIndex];
+  if (!handLandmarks || handLandmarks.length === 0) return; // Guard: No landmarks
+
   const cone = coneVisualsPerHand[handIndex];
+  if (!cone || !cone.visible) return; // No cone, skip
+
+  const conePosition = new THREE.Vector3();
+  cone.getWorldPosition(conePosition); // Get cone's world position (cursor tip)
   
-  // Use cursor position (cone.position) as ray origin to align with visual feedback
-  const rayOrigin = cone.position.clone();
-  const rayDirection = smoothedRayDirections[handIndex];
-  raycaster.set(rayOrigin, rayDirection);
-
-  const selectableObjects = scene.children.filter(
-    (obj) =>
-      obj.isMesh &&
-      !landmarkVisualsPerHand.flat().includes(obj) &&
-      !connectionVisualsPerHand.flat().includes(obj) &&
-      !obj.userData.isWall // Exclude the whiteboard from grabbing
-  );
-  // console.log(`Hand ${handIndex} selectable objects: ${selectableObjects.length}`);
-  const intersects = raycaster.intersectObjects(selectableObjects, true); // true for recursive (children)
-
-  console.log(`Hand ${handIndex} grab attempt: ${intersects.length} intersections found`);
-  if (intersects.length > 0) {
-    intersects.forEach(intersect => {
-      console.log(`Intersected object: ${intersect.object.userData.isKnob ? 'knob' : intersect.object.name || intersect.object.id}`);
-    });
-    grabbedObject = intersects[0].object;
-    grabbedObject.userData.originalScale = grabbedObject.scale.clone();
-    grabbedObject.scale.multiplyScalar(GRAB_SCALE_FACTOR); // Visual feedback
-    grabbedObject.userData.handIndex = handIndex; // Track which hand grabbed it
-    if (grabbedObject.userData.isKnob) {
-      grabbedObject.material.color.set(grabbedObject.userData.activeColor);
-      // console.log(`Hand ${handIndex} grabbed knob`);
-    } else {
-      // console.log(`Hand ${handIndex} grabbed object: ${grabbedObject.name || grabbedObject.id}`);
-    }
-  } else {
-    // console.log(`Hand ${handIndex} no object intersected for grabbing`);
+  // Find nearest grabbable object near cone
+  const grabbableObjects = [];
+  scene.traverse(obj => {
+  if (obj.userData?.isGrabbable && 
+      !obj.userData?.isWall && 
+      !landmarkVisualsPerHand.flat().includes(obj) && 
+      !connectionVisualsPerHand.flat().includes(obj)) {
+    grabbableObjects.push(obj);
   }
+});
+  grabbableObjects.map(obj => {
+    const objPos = new THREE.Vector3();
+    obj.getWorldPosition(objPos);
+    return { obj, distance: conePosition.distanceTo(objPos) };
+  }).sort((a, b) => a.distance - b.distance); // Sort by distance
+
+
+  console.log(grabbableObjects[0]);
+  if (grabbableObjects.length === 0 || grabbableObjects[0].distance > 0.5) { // Threshold, adjust as needed
+    console.log(`Hand ${handIndex} no nearby grabbable object near cone.`);
+    return;
+  }
+  
+  // Grab the nearest
+  const closest = grabbableObjects[0];
+  grabbedObject = closest;
+
+  // Ensure userData exists (fix for undefined error)
+  if (!grabbedObject.userData) {
+    grabbedObject.userData = {};
+  }
+
+  // New: Store and change color (e.g., to red 0xff0000)
+  if (grabbedObject.material) { // Guard for material
+    grabbedObject.userData = grabbedObject.userData || {}; // Ensure userData
+    grabbedObject.userData.originalColor = grabbedObject.material.color.clone();
+    grabbedObject.material.color.set(0xffa500); // Change to blue hex: 0x0000ff
+  }
+
+  // Ensure userData exists before using it
+  console.log(grabbedObject);
+  // Now safe to set
+  // grabbedObject.userData.originalScale = grabbedObject.scale.clone();
+  // grabbedObject.scale.multiplyScalar(GRAB_SCALE_FACTOR);
+  grabbedObject.userData.handIndex = handIndex;
+
+  if (grabbedObject) {
+    console.log("grabbedObject");
+  }
+  // if (grabbedObject.userData.isKnob) {
+  //   grabbedObject.material.color.set(grabbedObject.userData.activeColor);
+  // }
+  // console.log(`Hand ${handIndex} grabbed: ${grabbedObject.name || grabbedObject.id}`);
 }
 
 function releaseObject(handIndex) {
@@ -481,12 +550,13 @@ function releaseObject(handIndex) {
       // console.log(`Hand ${handIndex} released knob`);
     }
     grabbedObject.userData.handIndex = null; // Clear hand association
+    grabbedObject.material.color.set(0xff0000);
     grabbedObject = null;
     // console.log(`Hand ${handIndex} released object`);
   }
 }
 
-async function switchToTableScene() {
+async function switchToScene(sceneName) {
   let { scene, camera, renderer, controls } = getSceneObjects();
 
   // Dispose old scene resources
@@ -504,7 +574,7 @@ async function switchToTableScene() {
   controls.dispose();
 
   // Clear hand tracking state (visuals arrays, counters, etc.)
-  cleanupHandTracking();
+  cleanupHandTracking(scene);
 
   // Clear gesture control state (visuals and smoothed arrays)
   coneVisualsPerHand.length = 0;
@@ -513,10 +583,22 @@ async function switchToTableScene() {
   isPinchingState.fill(false);
   grabbedObject = null; // Clear any grabbed reference
 
-  // Dynamically import and set up new scene
-  const { setupTableScene } = await import('./tableSetup.js');
-  
-  setupTableScene();
+  let setupFunction;
+  switch (sceneName) {
+    case 'whiteboard':
+      const { setupThreeScene } = await import('./threeSetup.js');
+      setupFunction = setupThreeScene;
+      break;
+    case 'table':
+      const { setupTableScene } = await import('./tableSetup.js');
+      setupFunction = setupTableScene;
+      break;
+    default:
+      console.error(`Unknown scene: ${sceneName}`);
+      return;
+  }
+
+  setupFunction();
 
   // Re-setup hand tracking and gestures with new scene
   const { scene: newScene } = getSceneObjects();

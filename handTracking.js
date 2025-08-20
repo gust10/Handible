@@ -33,7 +33,7 @@ const laserVisualsPerHand = []; // Laser line per hand
 const palmSpheresPerHand = []; // New: Persistent spheres per hand
 let lastVideoTime = -1;
 let results = undefined;
-let fpsCounterElement;
+let fpsCounterElement = document.getElementById("fps-counter");
 let frameCount = 0;
 let lastFpsUpdateTime = performance.now();
 
@@ -57,8 +57,10 @@ const FACING_FALSE_THRESHOLD = 15; // ~500ms at 30fps for hide delay
 // Moved: Define isUIActive at module level
 let isUIActive = false;
 
+
+
 export async function setupHandTracking(scene) {
-  fpsCounterElement = document.getElementById("fps-counter");
+  
 
   // Create UI panel once
   const panelGeometry = new RoundedBoxGeometry(UI_PANEL_WIDTH, UI_PANEL_HEIGHT, 0.05, 8, 0.5); // Width, height, depth, segments, radius for rounded corners
@@ -260,18 +262,68 @@ function updateUIPanel(smoothedLandmarks, isFacing) {
   }
 }
 
-export function cleanupHandTracking() {
+export function cleanupHandTracking(scene) { // New: Take scene for removal/disposal
+  // Dispose and remove visuals
+  landmarkVisualsPerHand.forEach((handVisuals, i) => {
+    handVisuals.forEach(sphere => {
+      scene.remove(sphere);
+      sphere.geometry.dispose();
+      sphere.material.dispose();
+    });
+  });
   landmarkVisualsPerHand.length = 0;
+
+  // Repeat for each visual array
+  connectionVisualsPerHand.forEach(handConnections => {
+    handConnections.forEach(capsule => {
+      scene.remove(capsule);
+      capsule.geometry.dispose();
+      capsule.material.dispose();
+    });
+  });
   connectionVisualsPerHand.length = 0;
-  smoothedLandmarksPerHand.length = 0;
+
+  zAxisVisualsPerHand.forEach(arrow => scene.remove(arrow));
   zAxisVisualsPerHand.length = 0;
+
+  laserVisualsPerHand.forEach(laser => {
+    scene.remove(laser);
+    laser.geometry.dispose();
+    laser.material.dispose();
+  });
   laserVisualsPerHand.length = 0;
+
+  palmSpheresPerHand.forEach(sphere => {
+    scene.remove(sphere);
+    sphere.geometry.dispose();
+    sphere.material.dispose();
+  });
   palmSpheresPerHand.length = 0;
+
+  // gives error
+  // palmRayVisualsPerHand.forEach(ray => {
+  //   scene.remove(ray);
+  //   ray.geometry.dispose();
+  //   ray.material.dispose();
+  // });
+  // palmRayVisualsPerHand.length = 0;
+
+  // UI panel
+  if (uiPanel) {
+    uiPanel.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    });
+    scene.remove(uiPanel);
+    uiPanel = null;
+  }
+
+  // Counters/smoothed clears (unchanged)
   consecutiveFacingTrue = 0;
   consecutiveFacingFalse = 0;
   isUIActive = false;
-  uiPanel = null; // Reset UI panel reference (will be recreated)
-  smoothedUIPosition.set(0, 0, 0); // Reset smoothed position
+  smoothedUIPosition.set(0, 0, 0);
+  smoothedLandmarksPerHand.length = 0;
 }
 
 export function predictWebcam(video, handLandmarker) {
@@ -400,7 +452,7 @@ export function predictWebcam(video, handLandmarker) {
         const startPos = currentSmoothedLandmarks[startLandmarkIndex];
         const endPos = currentSmoothedLandmarks[endLandmarkIndex];
 
-        
+
         // Position midway
         capsule.position.copy(startPos.clone().add(endPos).multiplyScalar(0.5));
 
@@ -468,5 +520,6 @@ export function predictWebcam(video, handLandmarker) {
 }
 
 export function getHandTrackingData() {
+  // Maybe need null checks here?
   return { landmarkVisualsPerHand, connectionVisualsPerHand, smoothedLandmarksPerHand };
 }
