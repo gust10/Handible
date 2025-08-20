@@ -2,14 +2,157 @@ import * as THREE from "three";
 import { getSceneObjects } from "./sceneManager.js";
 import { cleanupHandTracking, getHandTrackingData, setupHandTracking } from "./handTracking.js";
 
+// Core state management
 const raycaster = new THREE.Raycaster();
 let grabbedObject = null;
-let sceneCache = {}; // New: Global cache for static objects (reset on scene switch)
-const rayVisualsPerHand = []; // Array to store ray visuals for each hand
-const coneVisualsPerHand = []; // Array to store cone visuals for each hand
-const smoothedRayOrigins = []; // Smoothed ray origin for each hand
-const smoothedRayDirections = []; // Smoothed ray direction for each hand
-export const isPinchingState = Array(2).fill(false); // Moved from handTracking.js
+let sceneCache = {};
+
+/**
+ * Surface interaction system for handling cursor interactions with flat surfaces
+ */
+class SurfaceInteractionSystem {
+  constructor() {
+    this.surfaces = new Map();
+    this.hoveredButtons = new Map(); // Store hovered button per surface
+  }
+
+  registerSurface(surface, config) {
+    const defaultConfig = {
+      width: 1,
+      height: 1,
+      cursorScaleFactor: 2.5,
+      buttonHoverThreshold: 0.4,
+      getNormal: () => new THREE.Vector3(0, 0, 1),
+      getButtonFilter: () => true,
+      handleCursorPosition: null
+    };
+
+    this.surfaces.set(surface.uuid, {
+      surface,
+      config: { ...defaultConfig, ...config }
+    });
+  }
+
+  getSurfaceConfig(surface) {
+    return this.surfaces.get(surface.uuid)?.config;
+  }
+
+  getHoveredButton(surface) {
+    return this.hoveredButtons.get(surface.uuid);
+  }
+
+  setHoveredButton(surface, button) {
+    if (button) {
+      this.hoveredButtons.set(surface.uuid, button);
+    } else {
+      this.hoveredButtons.delete(surface.uuid);
+    }
+  }
+
+  updateCursorOnSurface(handIndex, handLandmarks, surface, cone) {
+    const config = this.getSurfaceConfig(surface);
+    if (!config) return false;
+
+    const cursorPoint = handLandmarks[3];
+    let worldPos;
+
+    if (config.handleCursorPosition) {
+      worldPos = config.handleCursorPosition(cursorPoint, surface, config);
+    } else {
+      const scaledX = cursorPoint.x * config.cursorScaleFactor;
+      const scaledY = cursorPoint.y * config.cursorScaleFactor;
+      
+      const clampedX = Math.max(-config.width / 2, Math.min(config.width / 2, scaledX));
+      const clampedY = Math.max(-config.height / 2, Math.min(config.height / 2, scaledY));
+
+      const localPos = new THREE.Vector3(clampedX, clampedY, 0);
+      worldPos = localPos.applyMatrix4(surface.matrixWorld);
+    }
+
+    const normal = config.getNormal(surface);
+    const coneDirection = normal.clone().negate();
+    
+    cone.position.copy(worldPos).add(normal.clone().multiplyScalar(CONE_HEIGHT));
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
+    cone.visible = true;
+
+    const buttons = surface.children.filter(config.getButtonFilter);
+    this.handleButtonInteractions(handIndex, cone, surface, buttons, config.buttonHoverThreshold);
+
+    return true;
+  }
+
+  handleButtonInteractions(handIndex, cone, surface, buttons, threshold) {
+    // Reset previously hovered button if it's no longer in the buttons list
+    const previousHovered = this.getHoveredButton(surface);
+    if (previousHovered && !buttons.includes(previousHovered)) {
+      this.resetButtonState(previousHovered);
+      this.setHoveredButton(surface, null);
+    }
+
+    // Find closest button within threshold
+    let closestButton = null;
+    let minDistance = Infinity;
+
+    for (const button of buttons) {
+      if (!button.userData.defaultPosition) {
+        button.userData.defaultPosition = button.position.clone();
+      }
+
+      const buttonWorldPos = new THREE.Vector3();
+      button.getWorldPosition(buttonWorldPos);
+      const distanceToButton = cone.position.distanceTo(buttonWorldPos);
+
+      if (distanceToButton < threshold) {
+        if (!isPinchingState[handIndex]) {
+          this.setButtonHoverState(button);
+        }
+        if (distanceToButton < minDistance) {
+          minDistance = distanceToButton;
+          closestButton = button;
+        }
+      } else if (button === previousHovered) {
+        this.resetButtonState(button);
+      }
+    }
+
+    // Update hover state
+    this.setHoveredButton(surface, closestButton);
+
+    // Update cone position if hovering over a button
+    if (closestButton) {
+      const buttonWorldPos = new THREE.Vector3();
+      closestButton.getWorldPosition(buttonWorldPos);
+      const normal = this.getSurfaceConfig(surface)?.getNormal(surface) || new THREE.Vector3(0, 0, 1);
+      const buttonTop = buttonWorldPos.clone().add(normal.clone().multiplyScalar(0.05));
+      cone.position.copy(buttonTop).add(normal.clone().multiplyScalar(CONE_HEIGHT));
+    }
+  }
+
+  setButtonHoverState(button) {
+    if (!button) return;
+    button.scale.set(1.1, 1.1, 1.1);
+    button.material.color.set(button.userData.hoverColor || 0xffa500);
+  }
+
+  resetButtonState(button) {
+    if (!button) return;
+    button.scale.set(1, 1, 1);
+    button.material.color.set(button.userData.defaultColor || 0xffffff);
+  }
+}
+
+// Create single instance of surface system
+const surfaceSystem = new SurfaceInteractionSystem();
+
+// Visual elements arrays
+const rayVisualsPerHand = [];
+const coneVisualsPerHand = [];
+const smoothedRayOrigins = [];
+const smoothedRayDirections = [];
+
+// Gesture state
+export const isPinchingState = Array(2).fill(false);
 const EMA_ALPHA = 0.35; // Match hand tracking smoothing
 const GRAB_SCALE_FACTOR = 3; // Scale grabbed object for visual feedback
 const CLOSE_DISTANCE_THRESHOLD = 3.0; // Increased further to ensure interactions trigger
@@ -184,145 +327,305 @@ function cacheSceneObjects(scene) {
   console.log('Scene objects cached'); // Debug
 }
 
-export function updateRaycast(handIndex, handedness, isUIActive) {
-  const { scene } = getSceneObjects();
-  const { smoothedLandmarksPerHand, landmarkVisualsPerHand, connectionVisualsPerHand } = getHandTrackingData();
-  const handLandmarks = smoothedLandmarksPerHand[handIndex];
-  
-  // Use landmark 3 (thumb IP) as ray origin
-  const rayOrigin = handLandmarks[3].clone();
+// Ray calculation functions
+function calculateRayOrigin(handLandmarks) {
+  return handLandmarks[3].clone(); // Use thumb IP as ray origin
+}
 
-  // Calculate ray direction (from wrist to middle finger tip)
+function calculateRayDirection(handLandmarks) {
   const wrist = handLandmarks[0];
   const middleTip = handLandmarks[12];
-  const rayDirection = new THREE.Vector3()
+  return new THREE.Vector3()
     .subVectors(middleTip, wrist)
     .normalize();
+}
 
-  // Smooth ray origin and direction
+function smoothRayTransform(handIndex, rayOrigin, rayDirection) {
   smoothedRayOrigins[handIndex].lerp(rayOrigin, EMA_ALPHA);
   smoothedRayDirections[handIndex].lerp(rayDirection, EMA_ALPHA);
+  return {
+    origin: smoothedRayOrigins[handIndex],
+    direction: smoothedRayDirections[handIndex]
+  };
+}
 
+// UI Panel interaction
+function shouldSkipUIInteraction(handedness, isUIActive, wrist, panel) {
+  if (!isUIActive) return false;
+  
+  if (handedness === 'Left') return true;
+  
+  if (handedness === 'Right' && panel) {
+    const distanceToPanel = wrist.distanceTo(panel.position);
+    return distanceToPanel >= UI_CURSOR_THRESHOLD;
+  }
+  
+  return false;
+}
+
+function getUIPanelIntersection(wrist, rayDirection, panel) {
+  // Apply UI-specific rotation offset
+  const adjustedDirection = rayDirection.clone();
+  const rotationMatrix = new THREE.Matrix4().makeRotationX(UI_CURSOR_ROTATION_OFFSET);
+  adjustedDirection.applyMatrix4(rotationMatrix).normalize();
+
+  // Raycast to panel
+  raycaster.set(wrist, adjustedDirection);
+  const intersects = raycaster.intersectObject(panel);
+  
+  return intersects.length > 0 ? intersects[0] : null;
+}
+
+function calculatePanelInteractionPoint(intersection, panel) {
+  if (!intersection) return null;
+
+  // Convert to local coordinates for clamping
+  const localPos = intersection.point.clone().applyMatrix4(panel.matrixWorld.clone().invert());
+  
+  // Clamp to panel bounds
+  const clampedX = Math.max(-UI_PANEL_WIDTH / 2, Math.min(UI_PANEL_WIDTH / 2, localPos.x * UI_CURSOR_SENSITIVITY));
+  const clampedY = Math.max(-UI_PANEL_HEIGHT / 2, Math.min(UI_PANEL_HEIGHT / 2, localPos.y * UI_CURSOR_SENSITIVITY));
+  
+  localPos.set(clampedX, clampedY, 0);
+  return localPos.applyMatrix4(panel.matrixWorld);
+}
+
+// Visual feedback
+function updateConeVisual(cone, position, direction) {
+  if (!position) {
+    cone.visible = false;
+    return;
+  }
+
+  cone.visible = true;
+  cone.position.copy(position);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+}
+
+// UI Panel interaction handler
+function handleUIPanelInteraction(handIndex, wristPosition, smoothedRay, panel, cone) {
+  const intersection = getUIPanelIntersection(wristPosition, smoothedRay.direction, panel);
+  if (!intersection) {
+    cone.visible = false;
+    return;
+  }
+
+  const interactionPoint = calculatePanelInteractionPoint(intersection, panel);
+  if (!interactionPoint) {
+    cone.visible = false;
+    return;
+  }
+
+  // Get panel normal for visual feedback
+  const panelNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(panel.quaternion).normalize();
+  updateConeVisual(cone, interactionPoint, panelNormal.clone().negate());
+
+  // Handle button interactions
+  handleUIButtonInteractions(handIndex, cone, panel);
+}
+
+// UI Button interaction handler
+function handleUIButtonInteractions(handIndex, cone, panel) {
+  handleButtonInteractions(handIndex, cone, panel, panel.children, UIBUTTON_HOVER_THRESHOLD);
+}
+
+// Wall interaction handler
+function handleWallInteraction(handIndex, handLandmarks, wall, cone) {
+  // Calculate cursor position on wall
+  const cursorPoint = handLandmarks[3];
+  const scaledX = cursorPoint.x * CURSOR_SCALE_FACTOR;
+  const scaledY = cursorPoint.y * CURSOR_SCALE_FACTOR;
+  
+  // Clamp to whiteboard boundaries
+  const clampedX = Math.max(-WHITEBOARD_WIDTH / 2, Math.min(WHITEBOARD_WIDTH / 2, scaledX));
+  const clampedY = Math.max(-WHITEBOARD_HEIGHT / 2, Math.min(WHITEBOARD_HEIGHT / 2, scaledY));
+
+  // Convert to world space
+  const localPos = new THREE.Vector3(clampedX, clampedY, 0);
+  const worldPos = localPos.applyMatrix4(wall.matrixWorld);
+
+  // Calculate wall normal and update cone
+  const wallNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(wall.quaternion).normalize();
+  const coneDirection = wallNormal.clone().negate();
+  
+  // Position cone at the correct height
+  cone.position.copy(worldPos).add(wallNormal.clone().multiplyScalar(CONE_HEIGHT));
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
+  cone.visible = true;
+
+  // Handle button interactions
+  handleButtonInteractions(handIndex, cone, wall, wall.children, BUTTON_HOVER_THRESHOLD);
+
+  // Handle knob interactions
+  handleKnobInteractions(handIndex, cone, wall);
+}
+
+// Generic button interaction handler
+function handleButtonInteractions(handIndex, cone, parent, children, threshold) {
+  const buttons = children.filter(obj => obj.userData.isButton || obj.userData.isUIButton);
+  let hoveredButton = null;
+  let minDistance = Infinity;
+
+  buttons.forEach(button => {
+    // Store original button position if not already stored
+    if (!button.userData.defaultPosition) {
+      button.userData.defaultPosition = button.position.clone();
+    }
+
+    const buttonWorldPos = new THREE.Vector3();
+    button.getWorldPosition(buttonWorldPos);
+    const distanceToButton = cone.position.distanceTo(buttonWorldPos);
+
+    if (distanceToButton < threshold) {
+      if (!isPinchingState[handIndex]) {
+        button.scale.set(1.1, 1.1, 1.1);
+        button.material.color.set(button.userData.hoverColor || 0xffa500);
+      }
+      if (distanceToButton < minDistance) {
+        minDistance = distanceToButton;
+        hoveredButton = button;
+      }
+    } else {
+      button.scale.set(1, 1, 1);
+      button.material.color.set(button.userData.defaultColor || 0xffffff);
+    }
+  });
+
+  // Handle button snapping
+  if (hoveredButton) {
+    const buttonWorldPos = new THREE.Vector3();
+    hoveredButton.getWorldPosition(buttonWorldPos);
+    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(parent.quaternion).normalize();
+    const buttonTop = buttonWorldPos.clone().add(normal.clone().multiplyScalar(0.05));
+    cone.position.copy(buttonTop).add(normal.clone().multiplyScalar(CONE_HEIGHT));
+  }
+}
+
+// Knob interaction handler
+function handleKnobInteractions(handIndex, cone, wall) {
+  const knobs = wall.children.filter(obj => obj.userData.isKnob);
+  
+  knobs.forEach(knob => {
+    const knobWorldPos = new THREE.Vector3();
+    knob.getWorldPosition(knobWorldPos);
+    const distanceToKnob = cone.position.distanceTo(knobWorldPos);
+
+    if (distanceToKnob < KNOB_HOVER_THRESHOLD) {
+      if (!isPinchingState[handIndex]) {
+        knob.scale.set(1.1, 1.1, 1.1);
+        knob.material.color.set(knob.userData.hoverColor || 0xffa500);
+      }
+    } else {
+      knob.scale.set(1, 1, 1);
+      knob.material.color.set(knob.userData.defaultColor || 0xffffff);
+    }
+  });
+}
+
+export function updateRaycast(handIndex, handedness, isUIActive) {
+  // Get scene objects and hand data
+  const { scene } = getSceneObjects();
+  const { smoothedLandmarksPerHand } = getHandTrackingData();
+  const handLandmarks = smoothedLandmarksPerHand[handIndex];
   const cone = coneVisualsPerHand[handIndex];
 
-  // Skip if cursor disabled
-  if (isUIActive && handedness === 'Left') {
-    // console.log(`Hand ${handIndex} skipped: left hand with UI active`);
+  // Early return if no valid landmarks
+  if (!handLandmarks || handLandmarks.length === 0) {
     cone.visible = false;
-    return; // Disable for left hand when UI open
+    return;
   }
 
-  if (isUIActive && handedness === 'Right') {
-    const panel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff);
-    if (panel) {
-      const distanceToPanel = wrist.distanceTo(panel.position);
-      if (distanceToPanel >= UI_CURSOR_THRESHOLD) {
-        cone.visible = false;
-        return; // Skip if right hand not close to UI
+  // Calculate and smooth ray properties
+  const rayOrigin = calculateRayOrigin(handLandmarks);
+  const rayDirection = calculateRayDirection(handLandmarks);
+  const smoothedRay = smoothRayTransform(handIndex, rayOrigin, rayDirection);
+
+  // Get interaction surfaces
+  const panel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff);
+  const wallObj = scene.children.find(obj => obj.userData.isWall);
+  const tableObj = scene.children.find(obj => obj.userData.isTable);
+  
+  // Check if we should skip UI interaction
+  if (shouldSkipUIInteraction(handedness, isUIActive, handLandmarks[0], panel)) {
+    cone.visible = false;
+    return;
+  }
+
+  // Register surfaces if not already registered
+  if (panel && !surfaceSystem.getSurfaceConfig(panel)) {
+    surfaceSystem.registerSurface(panel, {
+      width: UI_PANEL_WIDTH,
+      height: UI_PANEL_HEIGHT,
+      cursorScaleFactor: UI_CURSOR_SENSITIVITY,
+      buttonHoverThreshold: UIBUTTON_HOVER_THRESHOLD,
+      getNormal: (surface) => new THREE.Vector3(0, 0, 1).applyQuaternion(surface.quaternion).normalize(),
+      getButtonFilter: (obj) => obj.userData.isUIButton
+    });
+  }
+
+  if (wallObj && !surfaceSystem.getSurfaceConfig(wallObj)) {
+    surfaceSystem.registerSurface(wallObj, {
+      width: WHITEBOARD_WIDTH,
+      height: WHITEBOARD_HEIGHT,
+      cursorScaleFactor: CURSOR_SCALE_FACTOR,
+      buttonHoverThreshold: BUTTON_HOVER_THRESHOLD,
+      getNormal: (surface) => new THREE.Vector3(0, 0, 1).applyQuaternion(surface.quaternion).normalize(),
+      getButtonFilter: (obj) => obj.userData.isButton || obj.userData.isKnob
+    });
+  }
+
+  if (tableObj && !surfaceSystem.getSurfaceConfig(tableObj)) {
+    surfaceSystem.registerSurface(tableObj, {
+      width: TABLE_WIDTH,
+      height: TABLE_DEPTH,
+      cursorScaleFactor: TABLE_CURSOR_SCALE_FACTOR,
+      buttonHoverThreshold: BUTTON_HOVER_THRESHOLD,
+      getNormal: (surface) => new THREE.Vector3(0, 1, 0).applyQuaternion(surface.quaternion).normalize(),
+      getButtonFilter: (obj) => obj.userData.isButton,
+      handleCursorPosition: (cursorPoint, surface, config) => {
+        const scaledX = cursorPoint.x * config.cursorScaleFactor;
+        const scaledZ = -cursorPoint.y * config.cursorScaleFactor;
+        const clampedX = Math.max(-config.width / 2, Math.min(config.width / 2, scaledX));
+        const clampedZ = Math.max(-config.height / 2, Math.min(config.height / 2, scaledZ));
+        const localPos = new THREE.Vector3(clampedX, 0.1, clampedZ);
+        return localPos.applyMatrix4(surface.matrixWorld);
       }
+    });
+  }
 
-      // Apply rotation offset for UI panel cursor only
-      const adjustedDirection = smoothedRayDirections[handIndex].clone();
-      const rotationMatrix = new THREE.Matrix4().makeRotationX(UI_CURSOR_ROTATION_OFFSET);
-      adjustedDirection.applyMatrix4(rotationMatrix).normalize();
+  // Handle surface interactions
+  if (isUIActive && handedness === 'Right' && panel) {
+    surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, panel, cone);
+    return;
+  }
 
-      // Use wrist-based raycasting with adjusted direction for UI cursor
-      raycaster.set(wrist, adjustedDirection);
-      const intersects = raycaster.intersectObject(panel);
-      if (intersects.length === 0) {
-        cone.visible = false;
-        return; //no UI panel intersection
-      }
-      let intersectPoint = intersects[0].point;
+  if (wallObj) {
+    surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, wallObj, cone);
+    return;
+  }
 
-      // Convert intersection point to local panel coordinates to clamp
-      const localPos = intersectPoint.clone().applyMatrix4(panel.matrixWorld.clone().invert());
-      const clampedX = Math.max(-UI_PANEL_WIDTH / 2, Math.min(UI_PANEL_WIDTH / 2, localPos.x * UI_CURSOR_SENSITIVITY));
-      const clampedY = Math.max(-UI_PANEL_HEIGHT / 2, Math.min(UI_PANEL_HEIGHT / 2, localPos.y * UI_CURSOR_SENSITIVITY));
-      localPos.set(clampedX, clampedY, 0);
-      const worldPos = localPos.applyMatrix4(panel.matrixWorld);
+  if (tableObj) {
+    surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, tableObj, cone);
+    return;
+  }
 
-      // Calculate panel normal
-      const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(panel.quaternion).normalize();
+  // Handle standard 3D space interaction
+  // Original whiteboard cursor logic
+  const wallSurface = scene.children.find(obj => obj.userData.isWall);
+  const tableSurface = scene.children.find(obj => obj.userData.isTable);
 
-      // Set cone direction: from base to tip = -normal (tip towards panel)
-      const coneDirection = normal.clone().negate();
-      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
-
-      // Set position to base = tip + normal * CONE_HEIGHT
-      cone.position.copy(worldPos).add(normal.multiplyScalar(CONE_HEIGHT));
-
-      cone.visible = true;
-
-      // Check for hover on UI buttons and apply effects; also find closest hovered button for snapping
-      const buttons = panel.children.filter(obj => obj.userData.isUIButton);
-      let hoveredButton = null;
-      let minDistance = Infinity;
-      buttons.forEach(button => {
-        const buttonWorldPos = new THREE.Vector3();
-        button.getWorldPosition(buttonWorldPos);
-        const distanceToButton = cone.position.distanceTo(buttonWorldPos);
-        // console.log(`Hand ${handIndex} distance to UI button: ${distanceToButton}`);
-        if (distanceToButton < UIBUTTON_HOVER_THRESHOLD) {
-          if (isPinchingState[handIndex]) {
-            // Press handled in onPinchStart
-          } else {
-            button.scale.set(1.1, 1.1, 1.1);
-            button.material.color.set(button.userData.hoverColor);
-          }
-          if (distanceToButton < minDistance) {
-            minDistance = distanceToButton;
-            hoveredButton = button;
-          }
-        } else {
-          button.scale.set(1, 1, 1);
-          button.material.color.set(button.userData.defaultColor);
-        }
-      });
-
-      // If hovering over a button, snap the cone (cursor) to the top of the button
-      if (hoveredButton) {
-        const buttonWorldPos = new THREE.Vector3();
-        hoveredButton.getWorldPosition(buttonWorldPos);
-        const buttonTop = buttonWorldPos.clone().add(normal.multiplyScalar(0.05)); // 0.1 height / 2 = 0.05
-        cone.position.copy(buttonTop).add(normal.multiplyScalar(CONE_HEIGHT));
-      }
-
-      return; // Exit after handling UI cursor
+  // Handle wall or table interaction
+  if (wallSurface) {
+    handleWallInteraction(handIndex, handLandmarks, wallSurface, cone);
+  } else if (tableSurface) {
+    // Handle table interaction
+    const chessboard = scene.getObjectByProperty('isChessboard', true);
+    if (chessboard) {
+      handleChessboardInteraction(handIndex, handLandmarks, tableSurface, chessboard, cone);
     } else {
-      // UI panel not found
-      cone.visible = false;
-      return;
+      handleTableInteraction(handIndex, handLandmarks, tableSurface, cone);
     }
   }
-
-  // Original whiteboard cursor logic
-  const wall = scene.children.find(obj => obj.userData.isWall);
-  const table = scene.children.find(obj => obj.userData.isTable);
-  if (wall) {
-    // Use landmark 3 (thumb IP) for cursor position
-    const cursorPoint = handLandmarks[3];
-    const scaledX = cursorPoint.x * CURSOR_SCALE_FACTOR;
-    const scaledY = cursorPoint.y * CURSOR_SCALE_FACTOR;
-    // Clamp to whiteboard boundaries (local space)
-    const clampedX = Math.max(-WHITEBOARD_WIDTH / 2, Math.min(WHITEBOARD_WIDTH / 2, scaledX));
-    const clampedY = Math.max(-WHITEBOARD_HEIGHT / 2, Math.min(WHITEBOARD_HEIGHT / 2, scaledY));
-
-    // Convert local position (at surface z=0 for tip) to world space
-    const localPos = new THREE.Vector3(clampedX, clampedY, 0);
-    const worldPos = localPos.applyMatrix4(wall.matrixWorld); // Tip position
-
-    // Calculate wall normal
-    const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(wall.quaternion).normalize();
-
-    // Set cone direction: from base to tip = -normal (tip towards board)
-    const coneDirection = normal.clone().negate();
-    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
-
-    // Set position to base = tip + normal * CONE_HEIGHT
-    cone.position.copy(worldPos).add(normal.multiplyScalar(CONE_HEIGHT));
-
-    cone.visible = true;
 
     // Check for hover on whiteboard buttons and apply effects; also find closest hovered button for snapping
     const buttons = wall.children.filter(obj => obj.userData.isButton);
@@ -374,75 +677,75 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
     if (hoveredButton) {
       const buttonWorldPos = new THREE.Vector3();
       hoveredButton.getWorldPosition(buttonWorldPos);
-      const buttonTop = buttonWorldPos.clone().add(normal.multiplyScalar(1)); // 0.1 height / 2 = 0.05 f
-      cone.position.copy(buttonTop).add(normal.multiplyScalar(CONE_HEIGHT));
+      const buttonTop = buttonWorldPos.clone().add(wallNormal.clone().multiplyScalar(1)); // 0.1 height / 2 = 0.05 f
+      cone.position.copy(buttonTop).add(wallNormal.clone().multiplyScalar(CONE_HEIGHT));
     }
-  } else if (table) {
-    // New: Check for chessboard first (snapping/highlighting takes priority)
-    const chessboard = scene.getObjectByProperty('isChessboard', true); // Recursive find
-    if (chessboard) {
-      // console.log("chessboard found for hand", handIndex);
-      const cursorPoint = handLandmarks[3]; // Thumb IP
-      const scaledX = cursorPoint.x * CHESSBOARD_SCALE_FACTOR;
-      const scaledZ = -cursorPoint.y * CHESSBOARD_SCALE_FACTOR; // Negated for vertical direction
 
-      // Map to grid 0-7
-      const col = Math.floor((scaledX + 1) * (CHESSBOARD_SIZE / 2));
-      const row = Math.floor((scaledZ + 1) * (CHESSBOARD_SIZE / 2));
-      const clampedCol = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, col));
-      const clampedRow = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, row));
+// Add these functions at the top level
 
-      // Get square and its world position
-      const squareIndex = clampedRow * CHESSBOARD_SIZE + clampedCol;
-      const square = chessboard.children[squareIndex];
-      if (square) {
-        const worldPos = new THREE.Vector3();
-        square.getWorldPosition(worldPos);
+function handleChessboardInteraction(handIndex, handLandmarks, table, chessboard, cone) {
+  const cursorPoint = handLandmarks[3]; // Thumb IP
+  const scaledX = cursorPoint.x * CHESSBOARD_SCALE_FACTOR;
+  const scaledZ = -cursorPoint.y * CHESSBOARD_SCALE_FACTOR; // Negated for vertical direction
 
-        // Highlight the square
-        square.material.color.set(HIGHLIGHT_COLOR);
+  // Map to grid 0-7
+  const col = Math.floor((scaledX + 1) * (CHESSBOARD_SIZE / 2));
+  const row = Math.floor((scaledZ + 1) * (CHESSBOARD_SIZE / 2));
+  const clampedCol = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, col));
+  const clampedRow = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, row));
 
-        // Set cone position to square center (above surface)
-        const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(table.quaternion).normalize();
-        cone.position.copy(worldPos);
+  // Get square and its world position
+  const squareIndex = clampedRow * CHESSBOARD_SIZE + clampedCol;
+  const square = chessboard.children[squareIndex];
+  if (square) {
+    const worldPos = new THREE.Vector3();
+    square.getWorldPosition(worldPos);
 
-        // Cone direction: point upwards
-        const coneDirection = normal;
-        cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
+    // Highlight the square
+    square.material.color.set(HIGHLIGHT_COLOR);
 
-        cone.visible = true;
+    // Set cone position to square center (above surface)
+    const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(table.quaternion).normalize();
+    cone.position.copy(worldPos);
 
-        // If grabbedObject, move it to snapped position
-        if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
-          console.log(grabbedObject.position.y, worldPos.y, cone.position.y)
-        }
-      }
-      // Store last snapped for pinch
-      lastSnappedSquarePerHand[handIndex] = { row: clampedRow, col: clampedCol, square };
-      // console.log(lastSnappedSquarePerHand[handIndex]);
-    } else {
-      // Fallback: Basic table cursor if no chessboard
-      const cursorPoint = handLandmarks[3];
-      const scaledX = cursorPoint.x * TABLE_CURSOR_SCALE_FACTOR;
-      const scaledZ = -cursorPoint.y * TABLE_CURSOR_SCALE_FACTOR;
-      const clampedX = Math.max(-TABLE_WIDTH / 2, Math.min(TABLE_WIDTH / 2, scaledX));
-      const clampedZ = Math.max(-TABLE_DEPTH / 2, Math.min(TABLE_DEPTH / 2, scaledZ));
+    // Cone direction: point upwards
+    const coneDirection = normal;
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
 
-      const localPos = new THREE.Vector3(clampedX, 0.1, clampedZ);
-      const worldPos = localPos.applyMatrix4(table.matrixWorld);
+    cone.visible = true;
 
-      const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(table.quaternion).normalize();
-      cone.position.copy(worldPos);
-      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-      cone.visible = true;
-
-      if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
-        grabbedObject.position.copy(cone.position);
-      }
+    // If grabbedObject, move it to snapped position
+    if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
+      console.log(grabbedObject.position.y, worldPos.y, cone.position.y);
     }
   }
+  // Store last snapped for pinch
+  lastSnappedSquarePerHand[handIndex] = { row: clampedRow, col: clampedCol, square };
+}
 
-  // If the grabbed object is the knob, constrain its movement horizontally along the slider track
+function handleTableInteraction(handIndex, handLandmarks, table, cone) {
+  const cursorPoint = handLandmarks[3];
+  const scaledX = cursorPoint.x * TABLE_CURSOR_SCALE_FACTOR;
+  const scaledZ = -cursorPoint.y * TABLE_CURSOR_SCALE_FACTOR;
+  const clampedX = Math.max(-TABLE_WIDTH / 2, Math.min(TABLE_WIDTH / 2, scaledX));
+  const clampedZ = Math.max(-TABLE_DEPTH / 2, Math.min(TABLE_DEPTH / 2, scaledZ));
+
+  const localPos = new THREE.Vector3(clampedX, 0.1, clampedZ);
+  const worldPos = localPos.applyMatrix4(table.matrixWorld);
+
+  const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(table.quaternion).normalize();
+  cone.position.copy(worldPos);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+  cone.visible = true;
+
+  if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
+    grabbedObject.position.copy(cone.position);
+  }
+  }
+}
+
+// If the grabbed object is the knob, constrain its movement horizontally along the slider track
+function handleKnobMovement(handIndex, cone, wall) {
   if (grabbedObject && grabbedObject.userData.isKnob && grabbedObject.userData.handIndex === handIndex) {
     raycaster.set(cone.position, smoothedRayDirections[handIndex]); // Use cursor position for raycasting
     const intersects = raycaster.intersectObject(wall);
@@ -453,25 +756,16 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
       localPos.y = -0.5; // Fixed y position of slider
       localPos.z = 0.1; // Fixed z position (above board)
       grabbedObject.position.copy(localPos.applyMatrix4(wall.matrixWorld));
-      // console.log(`Hand ${handIndex} moved knob to x: ${localPos.x}`);
-    } else {
-      // console.log(`Hand ${handIndex} no intersection with wall for knob movement`);
     }
-  }
-
-  // If an object is grabbed (non-knob), move it to the cursor position
-  if (grabbedObject && !grabbedObject.userData.isKnob && grabbedObject.userData.handIndex === handIndex) {
-    // HERE
-    // const offsetPosition = cone.position.clone().add(new THREE.Vector3(0, 0.8, 0)); // Lift by 0.15 (adjust for object height)
-    console.log(grabbedObject.position.y, cone.position.y)
-    grabbedObject.position.copy(cone.position);
-    console.log(grabbedObject.position.y, cone.position.y)
-    // grabbedObject.position.copy(cone.position);
-    // console.log(`Hand ${handIndex} moved non-knob object to: ${cone.position.x}, ${cone.position.y}, ${cone.position.z}`);
   }
 }
 
-export function grabNearestObject(handIndex, handedness, isUIActive, triggeredButton) {
+// If an object is grabbed (non-knob), move it to the cursor position
+function handleGrabbedObjectMovement(handIndex, cone) {
+  if (grabbedObject && !grabbedObject.userData.isKnob && grabbedObject.userData.handIndex === handIndex) {
+    grabbedObject.position.copy(cone.position);
+  }
+}export function grabNearestObject(handIndex, handedness, isUIActive, triggeredButton) {
   if (isUIActive || triggeredButton) {
     return; // Internal check: Skip if UI or button context
   }
@@ -479,10 +773,14 @@ export function grabNearestObject(handIndex, handedness, isUIActive, triggeredBu
   const { scene } = getSceneObjects();
   const { smoothedLandmarksPerHand, landmarkVisualsPerHand, connectionVisualsPerHand } = getHandTrackingData();
   const handLandmarks = smoothedLandmarksPerHand[handIndex];
-  if (!handLandmarks || handLandmarks.length === 0) return; // Guard: No landmarks
+  if (!handLandmarks || handLandmarks.length === 0) {
+    return; // Guard: No landmarks
+  }
 
   const cone = coneVisualsPerHand[handIndex];
-  if (!cone || !cone.visible) return; // No cone, skip
+  if (!cone || !cone.visible) {
+    return; // No cone, skip
+  }
 
   const conePosition = new THREE.Vector3();
   cone.getWorldPosition(conePosition); // Get cone's world position (cursor tip)
@@ -558,6 +856,10 @@ function releaseObject(handIndex) {
 
 async function switchToScene(sceneName) {
   let { scene, camera, renderer, controls } = getSceneObjects();
+
+  // Reset surface system state
+  surfaceSystem.surfaces.clear();
+  surfaceSystem.hoveredButtons.clear();
 
   // Dispose old scene resources
   scene.traverse(child => {
