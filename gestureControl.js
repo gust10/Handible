@@ -56,7 +56,11 @@ class SurfaceInteractionSystem {
     const cursorPoint = handLandmarks[3];
     let worldPos;
 
-    if (config.handleCursorPosition) {
+    // Check for chessboard first
+    const chessboard = surface.getObjectByProperty('isChessboard', true);
+    if (chessboard) {
+      worldPos = this.handleChessboardInteraction(handIndex, cursorPoint, surface, chessboard, cone);
+    } else if (config.handleCursorPosition) {
       worldPos = config.handleCursorPosition(cursorPoint, surface, config);
     } else {
       const scaledX = cursorPoint.x * config.cursorScaleFactor;
@@ -69,12 +73,23 @@ class SurfaceInteractionSystem {
       worldPos = localPos.applyMatrix4(surface.matrixWorld);
     }
 
+    if (!worldPos) return false;
+
     const normal = config.getNormal(surface);
     const coneDirection = normal.clone().negate();
     
     cone.position.copy(worldPos).add(normal.clone().multiplyScalar(CONE_HEIGHT));
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDirection);
     cone.visible = true;
+
+    // Update grabbed object position if any
+    if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
+      if (grabbedObject.userData.isKnob) {
+        this.handleKnobMovement(grabbedObject, cone, surface);
+      } else {
+        grabbedObject.position.copy(cone.position);
+      }
+    }
 
     const buttons = surface.children.filter(config.getButtonFilter);
     this.handleButtonInteractions(handIndex, cone, surface, buttons, config.buttonHoverThreshold);
@@ -140,6 +155,84 @@ class SurfaceInteractionSystem {
     button.scale.set(1, 1, 1);
     button.material.color.set(button.userData.defaultColor || 0xffffff);
   }
+
+  handleChessboardInteraction(handIndex, cursorPoint, surface, chessboard, cone) {
+    const scaledX = cursorPoint.x * CHESSBOARD_SCALE_FACTOR;
+    const scaledZ = -cursorPoint.y * CHESSBOARD_SCALE_FACTOR;
+
+    // Map to grid 0-7
+    const col = Math.floor((scaledX + 1) * (CHESSBOARD_SIZE / 2));
+    const row = Math.floor((scaledZ + 1) * (CHESSBOARD_SIZE / 2));
+    const clampedCol = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, col));
+    const clampedRow = Math.max(0, Math.min(CHESSBOARD_SIZE - 1, row));
+
+    // Get square and its world position
+    const squareIndex = clampedRow * CHESSBOARD_SIZE + clampedCol;
+    const square = chessboard.children[squareIndex];
+    
+    if (!square) return null;
+
+    // Reset previous square colors
+    chessboard.children.forEach(s => {
+      if (s !== square) {
+        // Store original color if not already stored
+        if (!s.userData.defaultColor) {
+          s.userData.defaultColor = s.material.color.clone();
+        }
+        s.material.color.copy(s.userData.defaultColor);
+      }
+    });
+
+    // Store original color if not already stored
+    if (!square.userData.defaultColor) {
+      square.userData.defaultColor = square.material.color.clone();
+    }
+
+    // Highlight current square
+    const currentColor = square.material.color.clone();
+    if (!square.userData.isHighlighted) {
+      square.userData.isHighlighted = true;
+      square.userData.lastColor = currentColor;
+      square.material.color.set(HIGHLIGHT_COLOR);
+    }
+    
+    // Get world position for cursor
+    const worldPos = new THREE.Vector3();
+    square.getWorldPosition(worldPos);
+
+    // Store last snapped square
+    lastSnappedSquarePerHand[handIndex] = { row: clampedRow, col: clampedCol, square };
+
+    // Update grabbable objects on the chessboard
+    const grabbableObjects = chessboard.children.filter(obj => obj.userData.isGrabbable);
+    grabbableObjects.forEach(obj => {
+      // Ensure we preserve the original color
+      if (!obj.userData.defaultColor) {
+        obj.userData.defaultColor = obj.material.color.clone();
+      }
+      if (!obj.userData.handIndex) {
+        obj.material.color.copy(obj.userData.defaultColor);
+      }
+    });
+
+    return worldPos;
+  }
+
+  handleKnobMovement(knob, cone, surface) {
+    if (!knob.userData.isKnob) return;
+
+    raycaster.set(cone.position, smoothedRayDirections[knob.userData.handIndex]);
+    const intersects = raycaster.intersectObject(surface);
+    
+    if (intersects.length > 0) {
+      const intersectPoint = intersects[0].point;
+      const localPos = intersectPoint.clone().applyMatrix4(surface.matrixWorld.clone().invert());
+      localPos.x = Math.max(-1.5, Math.min(1.5, localPos.x));
+      localPos.y = -0.5;
+      localPos.z = 0.1;
+      knob.position.copy(localPos.applyMatrix4(surface.matrixWorld));
+    }
+  }
 }
 
 // Create single instance of surface system
@@ -168,7 +261,7 @@ const UI_PANEL_WIDTH = 1.0;
 const UI_PANEL_HEIGHT = 0.6;
 const CURSOR_SCALE_FACTOR = 2.5; // Adjust as needed to fit webcam FOV to whiteboard; higher = more coverage
 const BUTTON_HOVER_THRESHOLD = 0.4; // Increased to account for 3D button size
-const UIBUTTON_HOVER_THRESHOLD = 0.2; // Threshold for UI button hover
+const UIBUTTON_HOVER_THRESHOLD = 0.2; // Threshold for UI button hover (reduced for more precise interaction)
 const UI_CURSOR_THRESHOLD = 1.5; // Distance threshold for right hand to UI panel
 const UI_CURSOR_SENSITIVITY = 1.0; // Controls sensitivity of wrist rotation for UI cursor
 const UI_CURSOR_ROTATION_OFFSET = -Math.PI / 6; // Rotation offset only for UI panel cursor
@@ -280,7 +373,9 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
     const buttonWorldPos = new THREE.Vector3();
     button.getWorldPosition(buttonWorldPos);
     const distanceToButton = cone.position.distanceTo(buttonWorldPos);
-    if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
+    // Use UIBUTTON_HOVER_THRESHOLD for UI buttons, BUTTON_HOVER_THRESHOLD for others
+    const threshold = button.userData.isUIButton ? UIBUTTON_HOVER_THRESHOLD : BUTTON_HOVER_THRESHOLD;
+    if (distanceToButton < threshold) {
       // Press effect: move button "down" along its local z (towards board/panel)
       button.position.z -= 0.05; // Depress by half height
       button.material.color.set(button.userData.activeColor);
@@ -788,47 +883,49 @@ function handleGrabbedObjectMovement(handIndex, cone) {
   // Find nearest grabbable object near cone
   const grabbableObjects = [];
   scene.traverse(obj => {
-  if (obj.userData?.isGrabbable && 
-      !obj.userData?.isWall && 
-      !landmarkVisualsPerHand.flat().includes(obj) && 
-      !connectionVisualsPerHand.flat().includes(obj)) {
-    grabbableObjects.push(obj);
-  }
-});
-  grabbableObjects.map(obj => {
-    const objPos = new THREE.Vector3();
-    obj.getWorldPosition(objPos);
-    return { obj, distance: conePosition.distanceTo(objPos) };
-  }).sort((a, b) => a.distance - b.distance); // Sort by distance
+    if (obj.userData?.isGrabbable && 
+        !obj.userData?.isWall && 
+        !landmarkVisualsPerHand.flat().includes(obj) && 
+        !connectionVisualsPerHand.flat().includes(obj)) {
+      // Calculate distance
+      const objPos = new THREE.Vector3();
+      obj.getWorldPosition(objPos);
+      grabbableObjects.push({ obj, distance: conePosition.distanceTo(objPos) });
+    }
+  });
 
+  // Sort by distance and get the closest
+  grabbableObjects.sort((a, b) => a.distance - b.distance);
 
-  console.log(grabbableObjects[0]);
-  if (grabbableObjects.length === 0 || grabbableObjects[0].distance > 0.5) { // Threshold, adjust as needed
-    console.log(`Hand ${handIndex} no nearby grabbable object near cone.`);
+  const closestObject = grabbableObjects[0];
+  if (!closestObject || closestObject.distance > 0.5) { // Threshold, adjust as needed
     return;
   }
   
   // Grab the nearest
-  const closest = grabbableObjects[0];
-  grabbedObject = closest;
+  grabbedObject = closestObject.obj;
 
-  // Ensure userData exists (fix for undefined error)
+  // Ensure userData exists and store original state
   if (!grabbedObject.userData) {
     grabbedObject.userData = {};
   }
 
-  // New: Store and change color (e.g., to red 0xff0000)
-  if (grabbedObject.material) { // Guard for material
-    grabbedObject.userData = grabbedObject.userData || {}; // Ensure userData
-    grabbedObject.userData.originalColor = grabbedObject.material.color.clone();
-    grabbedObject.material.color.set(0xffa500); // Change to blue hex: 0x0000ff
+  // Store original color if not already stored
+  if (grabbedObject.material && !grabbedObject.userData.defaultColor) {
+    grabbedObject.userData.defaultColor = grabbedObject.material.color.clone();
   }
 
-  // Ensure userData exists before using it
-  console.log(grabbedObject);
-  // Now safe to set
-  // grabbedObject.userData.originalScale = grabbedObject.scale.clone();
-  // grabbedObject.scale.multiplyScalar(GRAB_SCALE_FACTOR);
+  // Store original scale if needed
+  if (!grabbedObject.userData.originalScale) {
+    grabbedObject.userData.originalScale = grabbedObject.scale.clone();
+  }
+
+  // Update visual feedback
+  if (grabbedObject.material) {
+    grabbedObject.material.color.set(0xffa500); // Orange for grabbed state
+  }
+
+  // Associate with hand
   grabbedObject.userData.handIndex = handIndex;
 
   if (grabbedObject) {
@@ -842,15 +939,24 @@ function handleGrabbedObjectMovement(handIndex, cone) {
 
 function releaseObject(handIndex) {
   if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
-    grabbedObject.scale.copy(grabbedObject.userData.originalScale || grabbedObject.scale); // Restore scale
-    if (grabbedObject.userData.isKnob) {
-      grabbedObject.material.color.set(grabbedObject.userData.defaultColor);
-      // console.log(`Hand ${handIndex} released knob`);
+    // Restore original color if it was stored
+    if (grabbedObject.material) {
+      if (grabbedObject.userData.defaultColor) {
+        grabbedObject.material.color.copy(grabbedObject.userData.defaultColor);
+      } else {
+        // Default to red if no stored color
+        grabbedObject.material.color.set(0xff0000);
+      }
     }
-    grabbedObject.userData.handIndex = null; // Clear hand association
-    grabbedObject.material.color.set(0xff0000);
+
+    // Restore original scale if needed
+    if (grabbedObject.userData.originalScale) {
+      grabbedObject.scale.copy(grabbedObject.userData.originalScale);
+    }
+
+    // Clean up hand association
+    delete grabbedObject.userData.handIndex;
     grabbedObject = null;
-    // console.log(`Hand ${handIndex} released object`);
   }
 }
 
