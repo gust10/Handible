@@ -7,6 +7,7 @@ import { initializeMediaPipe } from "./mediaPipeSetup.js";
 import { setupHandTracking } from "./handTracking.js";
 import { initGestureControl } from './gestureControl.js';
 import { setupTableScene } from "./tableSetup.js";
+import { startGestureControl } from "./index.js";
 
 
 
@@ -28,11 +29,11 @@ async function init() {
 
   // Initialize MediaPipe HandLandmarker
   video = document.getElementById("webcamVideo");
-  handLandmarker = await await initializeMediaPipe(video); // New: Single call handles init and start
+
+  startGestureControl(video, getSceneObjects().scene, 2);
 
   // Setup hand tracking visualizations
-  await setupHandTracking(getSceneObjects().scene);
-  initGestureControl(getSceneObjects().scene, 2); // Pass scene and NUM_HANDS_TO_DETECT
+  
 
   document.getElementById("loading-message").style.display = "none";
   animate();
