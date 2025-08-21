@@ -76,15 +76,16 @@ const config = {
   ],
 
   plugins: [
-    [
-      '@easyops-cn/docusaurus-search-local',
-      {
-        hashed: true,
-        language: ["en"],
-        highlightSearchTermsOnTargetPage: true,
-        explicitSearchResultPath: true,
-      },
-    ],
+    // Temporarily disabled due to CI compatibility issues
+    // [
+    //   '@easyops-cn/docusaurus-search-local',
+    //   {
+    //     hashed: true,
+    //     language: ["en"],
+    //     highlightSearchTermsOnTargetPage: true,
+    //     explicitSearchResultPath: true,
+    //   },
+    // ],
   ],
 
   themeConfig:
