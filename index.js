@@ -21,7 +21,8 @@ import {
   UIBUTTON_HOVER_THRESHOLD,
   UI_CURSOR_THRESHOLD,
   CHESSBOARD_SIZE,
-  HIGHLIGHT_COLOR
+  HIGHLIGHT_COLOR,
+  sceneLoader
 } from "./gestureControl.js";
 import { 
   handConfig, 
@@ -55,7 +56,8 @@ export {
   UIBUTTON_HOVER_THRESHOLD,
   UI_CURSOR_THRESHOLD,
   CHESSBOARD_SIZE,
-  HIGHLIGHT_COLOR
+  HIGHLIGHT_COLOR,
+  sceneLoader
 };
 export { 
   handConfig, 

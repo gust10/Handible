@@ -104,6 +104,18 @@ init();
 - Customizable visual themes
 - Smooth interpolation
 
+### 🔊 **Professional Audio System**
+- Web Audio API integration
+- High-quality sound effects
+- Volume control and toggles
+- Low-latency feedback
+
+### 🎬 **Loading & Progress**
+- Animated loading gauges
+- Scene transition effects
+- Professional progress stages
+- Smooth visual feedback
+
 </div>
 
 ---
@@ -138,6 +150,35 @@ registerOnPinchEnd((handIndex) => {
 ```
 
 **🎉 Now pinch to grab the cube and move it around!**
+
+</div>
+
+---
+
+## 🔊 Adding Audio Feedback
+
+<div className="audio-showcase">
+
+**Make your interactions come alive with professional sound effects:**
+
+```javascript
+import { audioSystem, registerOnPinchStart } from 'handible';
+
+// 🔊 Set comfortable volume
+audioSystem.setVolume(0.4);
+
+// 🎵 Add sound to interactions
+registerOnPinchStart((handIndex, handedness) => {
+  audioSystem.createClickSound();           // 🔊 Click feedback
+  console.log(`✨ ${handedness} hand grabbed something!`);
+});
+
+// 🎛️ Quick controls (also available in console)
+// toggleButtonSounds();     // Toggle on/off
+// setButtonVolume(0.6);     // Adjust volume
+```
+
+**🎵 Instant professional audio feedback with zero setup!**
 
 </div>
 

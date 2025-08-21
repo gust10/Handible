@@ -56,6 +56,88 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+/* High contrast code styling for dark backgrounds */
+[data-theme='dark'] .prism-code,
+[data-theme='light'] .prism-code,
+pre[class*="language-"],
+.markdown pre {
+  background: #1a202c !important;
+  color: #f7fafc !important;
+}
+
+/* Base code text - light but not pure white */
+[data-theme='dark'] .token,
+[data-theme='light'] .token,
+.prism-code .token,
+pre[class*="language-"] .token {
+  color: #f7fafc !important;
+}
+
+/* Specific token colors for maximum contrast and readability */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #a2a8bd !important;
+  font-style: italic;
+}
+
+.token.string,
+.token.attr-value {
+  color: #68d391 !important; /* Bright green */
+}
+
+.token.number {
+  color: #fd7979 !important; /* Bright coral */
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #63b3ed !important; /* Bright blue */
+}
+
+.token.operator,
+.token.entity,
+.token.url {
+  color: #f093a6 !important; /* Bright pink */
+}
+
+.token.keyword,
+.token.atrule,
+.token.attr-name {
+  color: #fbd38d !important; /* Bright amber */
+}
+
+.token.function,
+.token.class-name {
+  color: #c084fc !important; /* Bright purple */
+}
+
+.token.punctuation {
+  color: #cbd5e0 !important; /* Light gray */
+}
+
+/* Variable names and selectors */
+.token.selector,
+.token.important,
+.token.variable {
+  color: #81e6d9 !important; /* Bright teal */
+}
+
+/* Inline code snippets with bright colors */
+code:not([class*="language-"]) {
+  background: #2d3748 !important;
+  color: #63b3ed !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
 /* Enhanced blockquotes */
 blockquote {
   border-left: 4px solid var(--ifm-color-primary);

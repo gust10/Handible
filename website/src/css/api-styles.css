@@ -73,6 +73,121 @@
   font-size: 1.2em;
 }
 
+/* Configuration table styles for better readability */
+.config-note {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+  color: white;
+  box-shadow: 0 8px 32px rgba(79, 172, 254, 0.2);
+}
+
+.config-note > blockquote {
+  border-left: 4px solid rgba(255, 255, 255, 0.5);
+  padding-left: 16px;
+  margin: 12px 0;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Enhanced table styles for configuration constants */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+table th {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  padding: 16px 12px;
+  text-align: left;
+  border: none;
+  font-size: 0.95em;
+}
+
+table td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  color: #2d3748;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+table td:first-child {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: 600;
+  background: rgba(102, 126, 234, 0.05);
+  color: #667eea;
+}
+
+table td:nth-child(2) {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: 700;
+  color: #e53e3e;
+  background: rgba(229, 62, 62, 0.05);
+}
+
+table tbody tr:hover {
+  background: rgba(102, 126, 234, 0.08);
+  transform: scale(1.01);
+  transition: all 0.2s ease;
+}
+
+/* Code blocks in configuration sections */
+pre[class*="language-"] {
+  background: #1a202c !important;
+  border-radius: 8px;
+  padding: 20px !important;
+  margin: 16px 0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+code[class*="language-"] {
+  color: #f7fafc !important;
+  font-size: 0.95em;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+/* Syntax highlighting improvements - Bright readable colors */
+.token.comment { color: #a2a8bd !important; font-style: italic; }
+.token.string { color: #68d391 !important; }
+.token.number { color: #fd7979 !important; }
+.token.property { color: #63b3ed !important; }
+.token.operator { color: #f093a6 !important; }
+.token.keyword { color: #fbd38d !important; }
+.token.function { color: #c084fc !important; }
+.token.punctuation { color: #cbd5e0 !important; }
+.token.selector { color: #81e6d9 !important; }
+
+/* Inline code snippets */
+code {
+  background: #2d3748 !important;
+  color: #63b3ed !important;
+  padding: 3px 6px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* API section code snippets */
+.api-section code {
+  background: rgba(0, 0, 0, 0.4) !important;
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: #81e6d9 !important;
+  font-weight: 700 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
 .example-section {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 16px;
@@ -87,10 +202,17 @@
 }
 
 .example-section pre {
-  background: rgba(0, 0, 0, 0.3) !important;
+  background: #1a202c !important;
   border-radius: 8px;
-  padding: 16px;
+  padding: 20px !important;
   margin: 16px 0;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.example-section code {
+  color: #f7fafc !important;
+  font-weight: 500 !important;
 }
 
 .concept-highlight {
