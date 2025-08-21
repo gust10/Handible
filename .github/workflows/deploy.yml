@@ -34,13 +34,13 @@ jobs:
             website/package-lock.json
       
       - name: Install main app dependencies
-        run: npm ci
+        run: npm install
       
       - name: Build main app with Vite
         run: npm run build
       
       - name: Install Docusaurus dependencies
-        run: npm ci
+        run: npm install
         working-directory: ./website
       
       - name: Build Docusaurus site
