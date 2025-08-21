@@ -296,7 +296,8 @@ class SurfaceInteractionSystem {
         if (!s.userData.defaultColor) {
           s.userData.defaultColor = s.material.color.clone();
         }
-        s.material.color.copy(s.userData.defaultColor);
+        s.material.color.set(s.userData.defaultColor);
+        s.userData.isHighlighted = false; // Reset highlight flag
       }
     });
 
@@ -782,6 +783,11 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
   const wallObj = scene.children.find(obj => obj.userData.isWall);
   const tableObj = scene.children.find(obj => obj.userData.isTable);
   
+  // If UI is not active, ensure the cone is not visible unless interacting with another surface
+  if (!isUIActive) {
+    cone.visible = false;
+  }
+
   // Check if we should skip UI interaction
   if (shouldSkipUIInteraction(handedness, isUIActive, handLandmarks[0], panel)) {
     cone.visible = false;
