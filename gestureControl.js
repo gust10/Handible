@@ -1005,6 +1005,14 @@ export function grabNearestObject(handIndex, handedness, isUIActive, triggeredBu
     grabbedObject.userData = {};
   }
 
+  // Store original parent and re-parent to scene for smooth world-space movement
+  grabbedObject.userData.originalParent = grabbedObject.parent;
+  const worldPosition = new THREE.Vector3();
+  grabbedObject.getWorldPosition(worldPosition);
+  
+  scene.add(grabbedObject); // Temporarily move to world space
+  grabbedObject.position.copy(worldPosition); // Set position in world space
+
   // Store original color if not already stored
   if (grabbedObject.material && !grabbedObject.userData.defaultColor) {
     grabbedObject.userData.defaultColor = grabbedObject.material.color.clone();
@@ -1047,6 +1055,20 @@ function releaseObject(handIndex) {
     // Restore original scale if needed
     if (grabbedObject.userData.originalScale) {
       grabbedObject.scale.copy(grabbedObject.userData.originalScale);
+    }
+
+    // Re-parent the object to its original parent (e.g., the chessboard)
+    if (grabbedObject.userData.originalParent) {
+      const worldPosition = new THREE.Vector3();
+      grabbedObject.getWorldPosition(worldPosition);
+      
+      grabbedObject.userData.originalParent.add(grabbedObject);
+      
+      // Convert world position back to local position relative to the new parent
+      const localPosition = grabbedObject.userData.originalParent.worldToLocal(worldPosition);
+      grabbedObject.position.copy(localPosition);
+      
+      delete grabbedObject.userData.originalParent;
     }
 
     // Clean up hand association
