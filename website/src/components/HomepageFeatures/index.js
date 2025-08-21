@@ -58,7 +58,7 @@ export default function HomepageFeatures() {
       <div className="container">
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>
-            🌟 Why Developers <span className={styles.loveText}>Love</span> Handible
+            🌟 Why Choose <span className={styles.loveText}>Handible</span>
           </h2>
           <p className={styles.sectionSubtitle}>
             Powerful features that make hand tracking accessible and effortless
