@@ -81,8 +81,9 @@ export async function setupHandTracking(scene) {
   // Comment out button creation for UI panel
   
   const buttonPositions = [
-    { x: -0.15, y: 0, color: 0x00ff00, action: 'switchToTableScene', label: 'Table' }, // Green button - Table Scene
-    { x: 0.15, y: 0, color: 0x0066ff, action: 'switchToWhiteboardScene', label: 'Demo' } // Blue button - ThreeSetup Scene
+    { x: -0.3, y: 0, color: 0xffaa00, action: 'switchToThreeScene', label: 'Main' }, // Orange button - Main Scene
+    { x: 0, y: 0, color: 0x00ff00, action: 'switchToTableScene', label: 'Table' }, // Green button - Table Scene
+    { x: 0.3, y: 0, color: 0x0066ff, action: 'switchToSimpleScene', label: 'Simple' } // Blue button - Simple Scene
   ];
 
   buttonPositions.forEach(pos => {

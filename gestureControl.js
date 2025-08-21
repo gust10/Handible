@@ -30,7 +30,8 @@ class SceneLoadingSystem {
     // Update text based on scene
     const sceneDisplayNames = {
       'whiteboard': 'Demo Scene',
-      'table': 'Table Scene'
+      'table': 'Table Scene',
+      'simple': 'Simple Scene'
     };
     
     this.loadingText.textContent = `Loading ${sceneDisplayNames[sceneName] || 'Scene'}`;
@@ -458,7 +459,7 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
 
   // right hand UI cursor logic
   if (isUIActive && handedness === 'Right') {
-    const panel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff); // color matches UI panel
+    const panel = scene.children.find(obj => obj.isMesh && obj.material?.color?.getHex() === 0xbffbff); // color matches UI panel
     if (panel) {
       const wrist = handLandmarks[0];
       const distanceToPanel = wrist.distanceTo(panel.position);
@@ -503,13 +504,19 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
       button.material.color.set(button.userData.activeColor);
       console.log("Button pressed:", button);
       
-      // Trigger scene switch if this is the designated button
-      if (button.userData.action === 'switchToTableScene') {
+      // Trigger scene switch if this is a scene-switching button
+      const action = button.userData.action;
+      if (action && action.startsWith('switchTo')) {
+        // Extract scene name from action, e.g., "switchToSimpleScene" -> "simple"
+        let sceneName = action.replace('switchTo', '').replace('Scene', '').toLowerCase();
+        
+        // Handle special case for the main scene
+        if (sceneName === 'three') {
+          sceneName = 'whiteboard';
+        }
+        
         audioSystem.createSuccessSound(); // Play success sound for scene switch
-        switchToScene('table');
-      } else if (button.userData.action === 'switchToWhiteboardScene') {
-        audioSystem.createSuccessSound(); // Play success sound for scene switch
-        switchToScene('whiteboard');
+        switchToScene(sceneName);
       }
       
       triggeredButton = true;
@@ -544,7 +551,7 @@ function cacheSceneObjects(scene) {
   sceneCache.wall = scene.children.find(obj => obj.userData.isWall);
   sceneCache.table = scene.children.find(obj => obj.userData.isTable);
   sceneCache.chessboard = scene.getObjectByProperty('isChessboard', true);
-  sceneCache.uiPanel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff);
+  sceneCache.uiPanel = scene.children.find(obj => obj.isMesh && obj.material?.color?.getHex() === 0xbffbff);
   console.log('Scene objects cached'); // Debug
 }
 
@@ -771,7 +778,7 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
   const smoothedRay = smoothRayTransform(handIndex, rayOrigin, rayDirection);
 
   // Get interaction surfaces
-  const panel = scene.children.find(obj => obj.isMesh && obj.material?.color.getHex() === 0xbffbff);
+  const panel = scene.children.find(obj => obj.isMesh && obj.material?.color?.getHex() === 0xbffbff);
   const wallObj = scene.children.find(obj => obj.userData.isWall);
   const tableObj = scene.children.find(obj => obj.userData.isTable);
   
@@ -825,92 +832,44 @@ export function updateRaycast(handIndex, handedness, isUIActive) {
 
   // Handle surface interactions
   if (isUIActive && handedness === 'Right' && panel) {
-    surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, panel, cone);
-    return;
+    if (surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, panel, cone)) {
+      return;
+    }
   }
 
   if (wallObj) {
-    surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, wallObj, cone);
-    return;
+    if (surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, wallObj, cone)) {
+      return;
+    }
   }
 
   if (tableObj) {
-    surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, tableObj, cone);
+    if (surfaceSystem.updateCursorOnSurface(handIndex, handLandmarks, tableObj, cone)) {
+      return;
+    }
+  }
+
+  // Fallback for scenes without specific surfaces (like simpleScene)
+  // This prevents the app from crashing if no interactive surfaces are found.
+  // It provides a basic raycasting interaction in 3D space.
+  if (!wallObj && !tableObj && !panel) {
+    // Standard 3D space raycasting
+    raycaster.set(smoothedRay.origin, smoothedRay.direction);
+    
+    // Update cone position and orientation
+    const conePosition = smoothedRay.origin.clone().add(smoothedRay.direction.clone().multiplyScalar(1.5));
+    cone.position.copy(conePosition);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), smoothedRay.direction);
+    cone.visible = true;
+    
+    // Basic object intersection test (optional)
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    if (intersects.length > 0) {
+      // You could add hover effects here for simple scenes
+    }
     return;
   }
-
-  // Handle standard 3D space interaction
-  // Original whiteboard cursor logic
-  const wallSurface = scene.children.find(obj => obj.userData.isWall);
-  const tableSurface = scene.children.find(obj => obj.userData.isTable);
-
-  // Handle wall or table interaction
-  if (wallSurface) {
-    handleWallInteraction(handIndex, handLandmarks, wallSurface, cone);
-  } else if (tableSurface) {
-    // Handle table interaction
-    const chessboard = scene.getObjectByProperty('isChessboard', true);
-    if (chessboard) {
-      handleChessboardInteraction(handIndex, handLandmarks, tableSurface, chessboard, cone);
-    } else {
-      handleTableInteraction(handIndex, handLandmarks, tableSurface, cone);
-    }
-  }
-
-    // Check for hover on whiteboard buttons and apply effects; also find closest hovered button for snapping
-    const buttons = wall.children.filter(obj => obj.userData.isButton);
-    let hoveredButton = null;
-    let minDistance = Infinity;
-    buttons.forEach(button => {
-      const buttonWorldPos = new THREE.Vector3();
-      button.getWorldPosition(buttonWorldPos);
-      const distanceToButton = cone.position.distanceTo(buttonWorldPos);
-      // console.log(`Hand ${handIndex} distance to whiteboard button: ${distanceToButton}`);
-      if (distanceToButton < BUTTON_HOVER_THRESHOLD) {
-        if (isPinchingState[handIndex]) {
-          // Press handled in onPinchStart
-        } else {
-          button.scale.set(1.1, 1.1, 1.1);
-          button.material.color.set(button.userData.hoverColor);
-        }
-        if (distanceToButton < minDistance) {
-          minDistance = distanceToButton;
-          hoveredButton = button;
-        }
-      } else {
-        button.scale.set(1, 1, 1);
-        button.material.color.set(button.userData.defaultColor);
-      }
-    });
-
-    // Check for hover on knob and apply effects
-    const knobs = wall.children.filter(obj => obj.userData.isKnob);
-    knobs.forEach(knob => {
-      const knobWorldPos = new THREE.Vector3();
-      knob.getWorldPosition(knobWorldPos);
-      const distanceToKnob = cone.position.distanceTo(knobWorldPos);
-      // console.log(`Hand ${handIndex} distance to knob: ${distanceToKnob}`);
-      if (distanceToKnob < KNOB_HOVER_THRESHOLD) {
-        if (isPinchingState[handIndex]) {
-          // Grab handled in onPinchStart
-        } else {
-          knob.scale.set(1.1, 1.1, 1.1);
-          knob.material.color.set(knob.userData.hoverColor);
-        }
-      } else {
-        knob.scale.set(1, 1, 1);
-        knob.material.color.set(knob.userData.defaultColor);
-      }
-    });
-
-    // If hovering over a button, snap the cone (cursor) to the top of the button
-    if (hoveredButton) {
-      const buttonWorldPos = new THREE.Vector3();
-      hoveredButton.getWorldPosition(buttonWorldPos);
-      const buttonTop = buttonWorldPos.clone().add(wallNormal.clone().multiplyScalar(1)); // 0.1 height / 2 = 0.05 f
-      cone.position.copy(buttonTop).add(wallNormal.clone().multiplyScalar(CONE_HEIGHT));
-    }
-
+}
 // Add these functions at the top level
 
 function handleChessboardInteraction(handIndex, handLandmarks, table, chessboard, cone) {
@@ -970,7 +929,6 @@ function handleTableInteraction(handIndex, handLandmarks, table, cone) {
 
   if (grabbedObject && grabbedObject.userData.handIndex === handIndex) {
     grabbedObject.position.copy(cone.position);
-  }
   }
 }
 
@@ -1146,6 +1104,10 @@ async function switchToScene(sceneName) {
     case 'table':
       const { setupTableScene } = await import('./tableSetup.js');
       setupFunction = setupTableScene;
+      break;
+    case 'simple':
+      const { setupSimpleScene } = await import('./simpleScene.js');
+      setupFunction = setupSimpleScene;
       break;
     default:
       console.error(`Unknown scene: ${sceneName}`);
