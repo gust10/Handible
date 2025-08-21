@@ -1,6 +1,120 @@
 import * as THREE from "three";
 import { getSceneObjects } from "./sceneManager.js";
 import { cleanupHandTracking, getHandTrackingData, setupHandTracking } from "./handTracking.js";
+import { audioSystem } from "./audioSystem.js";
+
+// Loading System for Scene Transitions
+class SceneLoadingSystem {
+  constructor() {
+    this.overlay = null;
+    this.gaugeFill = null;
+    this.loadingText = null;
+    this.loadingSubtitle = null;
+    this.progress = 0;
+    this.isActive = false;
+  }
+
+  init() {
+    this.overlay = document.getElementById('sceneLoadingOverlay');
+    this.gaugeFill = document.getElementById('gaugeFill');
+    this.loadingText = document.getElementById('loadingText');
+    this.loadingSubtitle = document.getElementById('loadingSubtitle');
+  }
+
+  show(sceneName = '') {
+    if (!this.overlay) this.init();
+    
+    this.isActive = true;
+    this.progress = 0;
+    
+    // Update text based on scene
+    const sceneDisplayNames = {
+      'whiteboard': 'Demo Scene',
+      'table': 'Table Scene'
+    };
+    
+    this.loadingText.textContent = `Loading ${sceneDisplayNames[sceneName] || 'Scene'}`;
+    this.loadingSubtitle.textContent = 'Initializing environment...';
+    
+    // Show overlay with fade in
+    this.overlay.classList.add('active');
+    this.updateGauge(0);
+  }
+
+  hide() {
+    if (!this.overlay) return;
+    
+    this.isActive = false;
+    this.overlay.classList.remove('active');
+  }
+
+  updateGauge(progress) {
+    if (!this.gaugeFill || !this.isActive) return;
+    
+    this.progress = Math.max(0, Math.min(100, progress));
+    const rotation = (this.progress / 100) * 360;
+    this.gaugeFill.style.transform = `rotate(${-90 + rotation}deg)`;
+  }
+
+  setSubtitle(text) {
+    if (this.loadingSubtitle) {
+      this.loadingSubtitle.textContent = text;
+    }
+  }
+
+  // Simulate realistic loading progress with stages
+  async simulateProgress(totalDuration = 2000) {
+    if (!this.isActive) return;
+
+    const stages = [
+      { progress: 15, text: 'Disposing old scene...' },
+      { progress: 35, text: 'Loading scene assets...' },
+      { progress: 60, text: 'Setting up lighting...' },
+      { progress: 80, text: 'Initializing hand tracking...' },
+      { progress: 95, text: 'Finalizing setup...' },
+      { progress: 100, text: 'Ready!' }
+    ];
+
+    for (const stage of stages) {
+      if (!this.isActive) break;
+      
+      this.setSubtitle(stage.text);
+      await this.animateToProgress(stage.progress, totalDuration / stages.length);
+      
+      // Small delay between stages for better UX
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  async animateToProgress(targetProgress, duration) {
+    const startProgress = this.progress;
+    const progressDiff = targetProgress - startProgress;
+    const startTime = Date.now();
+
+    return new Promise(resolve => {
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function for smooth animation
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+        const currentProgress = startProgress + (progressDiff * easeProgress);
+        
+        this.updateGauge(currentProgress);
+        
+        if (progress >= 1) {
+          resolve();
+        } else {
+          requestAnimationFrame(animate);
+        }
+      };
+      animate();
+    });
+  }
+}
+
+// Create global instance
+const sceneLoader = new SceneLoadingSystem();
 
 // Core state management
 const raycaster = new THREE.Raycaster();
@@ -381,6 +495,9 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
     // Use UIBUTTON_HOVER_THRESHOLD for UI buttons, BUTTON_HOVER_THRESHOLD for others
     const threshold = button.userData.isUIButton ? UIBUTTON_HOVER_THRESHOLD : BUTTON_HOVER_THRESHOLD;
     if (distanceToButton < threshold) {
+      // Play button click sound
+      audioSystem.createClickSound();
+      
       // Press effect: move button "down" along its local z (towards board/panel)
       button.position.z -= 0.05; // Depress by half height
       button.material.color.set(button.userData.activeColor);
@@ -388,7 +505,11 @@ export function onPinchStart(handIndex, handedness, isUIActive) {
       
       // Trigger scene switch if this is the designated button
       if (button.userData.action === 'switchToTableScene') {
+        audioSystem.createSuccessSound(); // Play success sound for scene switch
         switchToScene('table');
+      } else if (button.userData.action === 'switchToWhiteboardScene') {
+        audioSystem.createSuccessSound(); // Play success sound for scene switch
+        switchToScene('whiteboard');
       }
       
       triggeredButton = true;
@@ -977,11 +1098,20 @@ function releaseObject(handIndex) {
 }
 
 async function switchToScene(sceneName) {
+  // Show loading overlay
+  sceneLoader.show(sceneName);
+  
+  // Start progress simulation
+  const progressPromise = sceneLoader.simulateProgress(2500);
+  
   let { scene, camera, renderer, controls } = getSceneObjects();
 
   // Reset surface system state
   surfaceSystem.surfaces.clear();
   surfaceSystem.hoveredButtons.clear();
+
+  // Small delay to let loading animation start
+  await new Promise(resolve => setTimeout(resolve, 200));
 
   // Dispose old scene resources
   scene.traverse(child => {
@@ -1019,6 +1149,7 @@ async function switchToScene(sceneName) {
       break;
     default:
       console.error(`Unknown scene: ${sceneName}`);
+      sceneLoader.hide();
       return;
   }
 
@@ -1028,6 +1159,15 @@ async function switchToScene(sceneName) {
   const { scene: newScene } = getSceneObjects();
   await setupHandTracking(newScene);
   initGestureControl(newScene, 2); // Re-add cones and reset gesture state
+
+  // Wait for progress animation to complete
+  await progressPromise;
+  
+  // Small delay before hiding to show "Ready!" message
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  // Hide loading overlay
+  sceneLoader.hide();
 }
 
 export function getRayVisualsPerHand() {
@@ -1044,5 +1184,6 @@ export {
   UIBUTTON_HOVER_THRESHOLD,
   UI_CURSOR_THRESHOLD,
   CHESSBOARD_SIZE,
-  HIGHLIGHT_COLOR
+  HIGHLIGHT_COLOR,
+  sceneLoader // Export loading system for external use
 };

@@ -15,6 +15,19 @@
       <br />
       EMA 스무딩: <span id="ema-alpha-display">0.3</span> (main.js에서 변경)
     </div>
+
+    <!-- Scene Loading Overlay -->
+    <div class="loading-overlay" id="sceneLoadingOverlay">
+      <div class="loading-gauge">
+        <div class="gauge-track">
+          <div class="gauge-fill" id="gaugeFill"></div>
+        </div>
+        <div class="gauge-center"></div>
+      </div>
+      <div class="loading-text" id="loadingText">Switching Scene</div>
+      <div class="loading-subtitle" id="loadingSubtitle">Please wait...</div>
+    </div>
+
     <div id="loading-message">모델을 로드하고 웹캠을 설정하는 중...</div>
     <div id="fps-counter" class="fps-counter">FPS: 0</div>
 

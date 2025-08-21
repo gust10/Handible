@@ -150,7 +150,7 @@ export function setupThreeScene() {
   knob.add(innerGlow);
   
   knob.userData.isKnob = true;
-  knob.userData.defaultColor = 0xecf0f1;S
+  knob.userData.defaultColor = 0xecf0f1;
   knob.userData.hoverColor = 0xffd700;
   knob.userData.activeColor = 0xff6b35;
   knob.userData.innerGlow = innerGlow;
@@ -186,8 +186,8 @@ export function setupThreeScene() {
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
   keyLight.position.set(5, 10, 5);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.width = 4096;
-  keyLight.shadow.mapSize.height = 4096;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
   keyLight.shadow.camera.near = 0.5;
   keyLight.shadow.camera.far = 50;
   keyLight.shadow.camera.left = -10;
@@ -254,7 +254,7 @@ export function setupThreeScene() {
     animateParticles(scene);
     
     // Update environment map occasionally
-    if (Math.random() < 0.01) {
+    if (Math.random() < 0.005) {
       cubeCamera.update(renderer, scene);
     }
   }
@@ -284,7 +284,7 @@ function createGradientTexture() {
 
 // Helper function to create floating particles
 function createFloatingParticles(scene) {
-  const particleCount = 100;
+  const particleCount = 50;
   const positions = new Float32Array(particleCount * 3);
   
   for (let i = 0; i < particleCount; i++) {

@@ -51,8 +51,8 @@ const smoothedUIPosition = new THREE.Vector3(); // For smooth following
 // New: Anti-flicker for UI panel
 let consecutiveFacingTrue = 0;
 let consecutiveFacingFalse = 0;
-const FACING_TRUE_THRESHOLD = 5; // ~167ms at 30fps for show delay
-const FACING_FALSE_THRESHOLD = 15; // ~500ms at 30fps for hide delay
+const FACING_TRUE_THRESHOLD = 3; // ~100ms at 30fps for show delay (made easier)
+const FACING_FALSE_THRESHOLD = 10; // ~333ms at 30fps for hide delay (made easier)
 
 // Moved: Define isUIActive at module level
 let isUIActive = false;
@@ -64,17 +64,12 @@ export async function setupHandTracking(scene) {
 
   // Create UI panel once
   const panelGeometry = new RoundedBoxGeometry(UI_PANEL_WIDTH, UI_PANEL_HEIGHT, 0.05, 8, 0.5); // Width, height, depth, segments, radius for rounded corners
-  const panelMaterial = new THREE.MeshPhysicalMaterial({
+  const panelMaterial = new THREE.MeshStandardMaterial({
     color: 0xbffbff, // white blue
-    transmission: 0.9, // High transmission for glass effect
-    // opacity: 0.8, // Slight transparency
-    // metalness: 0.0,
-    // roughness: 0.1, // Low roughness for smooth shine
-    // ior: 1.5, // Index of refraction for glass realism
-    // thickness: 0.01, // Thin glass
-    // envMapIntensity: 1.0, // Reflect environment if you have an env map
-    // clearcoat: 1.0, // Add clearcoat for extra gloss
-    // clearcoatRoughness: 0.1,
+    transparent: false,
+    // opacity: 0.85, // Slight transparency without expensive transmission
+    metalness: 0.1,
+    roughness: 0.3, // Balanced roughness for good look without heavy computation
     side: THREE.DoubleSide
   });
   uiPanel = new THREE.Mesh(panelGeometry, panelMaterial);
@@ -86,9 +81,8 @@ export async function setupHandTracking(scene) {
   // Comment out button creation for UI panel
   
   const buttonPositions = [
-    //{ x: -0.3, y: 0, color: 0xff0000 }, // Red button
-    { x: 0, y: 0, color: 0x00ff00 }, // Green button
-    //{ x: 0.3, y: 0, color: 0x0000ff } // Blue button
+    { x: -0.15, y: 0, color: 0x00ff00, action: 'switchToTableScene', label: 'Table' }, // Green button - Table Scene
+    { x: 0.15, y: 0, color: 0x0066ff, action: 'switchToWhiteboardScene', label: 'Demo' } // Blue button - ThreeSetup Scene
   ];
 
   buttonPositions.forEach(pos => {
@@ -106,7 +100,8 @@ export async function setupHandTracking(scene) {
     button.userData.hoverColor = 0xffff00; // Yellow for hover
     button.userData.activeColor = 0xffa500; // Orange for pressed
     button.userData.defaultPosition = button.position.clone(); // Store default position for reset
-    button.userData.action = 'switchToTableScene'; // Add this to identify the button for scene switch
+    button.userData.action = pos.action; // Use the action from button position data
+    button.userData.label = pos.label; // Store label for identification
     uiPanel.add(button);
   });
   
@@ -217,15 +212,13 @@ function updatePalmSphere(handIndex, smoothedLandmarks, isFacing) {
       .divideScalar(5);
 
     palmSphere.position.copy(palmCenter);
-    // const palmVec = palmCenter.clone().sub(wrist);
-    // palmVec.applyQuaternion(quat);
-    // palmCenter = wrist.clone().add(palmVec);
-    // palmSpheresPerHand[handIndex].position.copy(palmCenter);
-    palmSphere.visible = true;
-    // console.log(`Hand ${handIndex} palm sphere toggled ON at:`, palmCenter);
-  } else {
+    // Hide sphere when palm is facing camera (user requested)
     palmSphere.visible = false;
-    // console.log(`Hand ${handIndex} palm sphere toggled OFF`);
+    // console.log(`Hand ${handIndex} palm sphere toggled OFF (facing camera)`);
+  } else {
+    // Show sphere when palm is NOT facing camera
+    palmSphere.visible = false; // Keep hidden always if you don't want to see it
+    // console.log(`Hand ${handIndex} palm sphere toggled OFF (not facing)`);
   }
 }
 
@@ -368,8 +361,35 @@ export function predictWebcam(video, handLandmarker) {
     });
   }
 
-  // Reset UI active flag per frame
-  isUIActive = false;
+  // Reset UI active flag per frame - will be set by left hand if facing
+  let tempUIActive = false;
+  
+  // First pass: determine if UI should be active (check left hand)
+  if (results && results.landmarks && results.landmarks.length > 0) {
+    for (let handIndex = 0; handIndex < results.landmarks.length; handIndex++) {
+      const handedness = results.handedness[handIndex][0].categoryName;
+      if (handedness === 'Left' && handIndex < smoothedLandmarksPerHand.length && smoothedLandmarksPerHand[handIndex]) {
+        const currentSmoothedLandmarks = smoothedLandmarksPerHand[handIndex];
+        const facingNow = isPalmFacingCamera(handIndex, currentSmoothedLandmarks, handedness);
+        console.log(`Left hand facing: ${facingNow}, consecutiveFacingTrue: ${consecutiveFacingTrue}`);
+        if (facingNow) {
+          tempUIActive = true;
+          updateUIPanel(currentSmoothedLandmarks, facingNow);
+        } else {
+          updateUIPanel(currentSmoothedLandmarks, facingNow);
+        }
+        break; // Found left hand, no need to continue
+      }
+    }
+  }
+  
+  // Update global UI state
+  isUIActive = tempUIActive;
+  
+  // Debug logging
+  if (tempUIActive) {
+    console.log("UI is now ACTIVE - right hand should be able to interact with UI panel");
+  }
 
   if (results && results.landmarks && results.landmarks.length > 0) {
     for (let handIndex = 0; handIndex < results.landmarks.length; handIndex++) {
@@ -491,13 +511,7 @@ export function predictWebcam(video, handLandmarker) {
       const facingNow = isPalmFacingCamera(handIndex, currentSmoothedLandmarks, handedness);
       updatePalmSphere(handIndex, currentSmoothedLandmarks, facingNow);
 
-      // New: If left hand and facing, update UI panel and set UI active
-      if (handedness === 'Left') {
-        updateUIPanel(currentSmoothedLandmarks, facingNow);
-        isUIActive = facingNow;
-      }
-
-      // Update raycast for this hand
+      // Update raycast for this hand (now uses globally set isUIActive)
       updateRaycast(handIndex, handedness, isUIActive);
     }
   }

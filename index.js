@@ -2,6 +2,7 @@
 
 import { activateWebcamInCorner, initializeMediaPipe } from "./mediaPipeSetup.js";
 import { setSceneObjects, getSceneObjects } from "./sceneManager.js";
+import { audioSystem, toggleButtonSounds, setButtonVolume, AudioSystem } from "./audioSystem.js";
 import { 
   initGestureControl, 
   isPinching2D, 
@@ -35,6 +36,7 @@ import {
 // Re-export core functions and configurations for easy import
 export { activateWebcamInCorner, initializeMediaPipe };
 export { setSceneObjects, getSceneObjects };
+export { audioSystem, toggleButtonSounds, setButtonVolume, AudioSystem };
 export { 
   initGestureControl, 
   isPinching2D, 
