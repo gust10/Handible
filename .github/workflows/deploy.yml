@@ -51,7 +51,7 @@ jobs:
         run: |
           mkdir -p deploy
           mkdir -p deploy/docs
-          # Copy built main app files to root
+          # Copy built main app files to root (from dist folder)
           cp -r dist/* deploy/
           # Copy docs to /docs subdirectory
           cp -r website/build/* deploy/docs/
