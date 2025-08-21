@@ -157,13 +157,36 @@ The UI panel includes built-in scene switching functionality:
 
 ```javascript
 // Automatic scene switching buttons:
-// 🟢 Green Button → Table Scene
-// 🔵 Blue Button → Demo Scene (threeSetup)
+// � Orange Button → Main Scene (Demo/Whiteboard)
+// �🟢 Green Button → Table Scene  
+// 🔵 Blue Button → Simple Scene
 
 // Buttons automatically:
 // - Show loading gauges during transitions
 // - Play audio feedback on interaction
 // - Handle scene cleanup and re-initialization
+// - Parse button actions dynamically (switchToSimpleScene → 'simple')
+```
+
+### Error-Resistant Scene Loading
+
+Recent improvements ensure stable scene transitions:
+
+```javascript
+// ✅ Safe material property access
+const panel = scene.children.find(obj => 
+  obj.isMesh && obj.material?.color?.getHex() === 0xbffbff
+);
+
+// ✅ Fallback for scenes without interactive surfaces
+if (!wallObj && !tableObj && !panel) {
+  // Provides basic 3D space raycasting for simple scenes
+  // Prevents crashes in minimal environments
+}
+
+// ✅ Proper object disposal and cleanup
+// Each scene switch properly disposes previous resources
+// Prevents memory leaks and rendering conflicts
 ```
 
 ---

@@ -35,6 +35,11 @@ const handLandmarker = await startGestureControl(video, scene, 2);
 
 **Returns:** `Promise<HandLandmarker>` - MediaPipe hand landmark detector
 
+**✨ Recent Improvements:**
+- Enhanced error handling for missing scene objects
+- Safe material property access with optional chaining
+- Improved fallback behavior for minimal scenes
+
 </div>
 
 <div className="api-section">
@@ -1041,3 +1046,59 @@ SurfaceInteractionSystem.registerSurface(customSurface, {
   getButtonFilter: (obj) => obj.userData.isCustomButton
 });
 ```
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues and Solutions
+
+<div className="troubleshooting-section">
+
+#### ❌ `TypeError: Cannot read properties of undefined (reading 'getHex')`
+
+**Problem:** Scene objects with materials that don't have color properties.
+
+**Solution:** ✅ Fixed with safe property access using optional chaining:
+```javascript
+// Before (causes error)
+const panel = scene.children.find(obj => obj.material.color.getHex() === 0xbffbff);
+
+// After (safe)
+const panel = scene.children.find(obj => obj.material?.color?.getHex() === 0xbffbff);
+```
+
+#### ❌ `ReferenceError: wall is not defined`
+
+**Problem:** Legacy code trying to access undefined `wall` variable.
+
+**Solution:** ✅ Fixed by removing redundant code blocks and using proper surface system:
+```javascript
+// Now uses SurfaceInteractionSystem for all surface interactions
+// Fallback behavior for scenes without specific interactive surfaces
+```
+
+#### ❌ Scene switching buttons not working
+
+**Problem:** Button action names didn't match scene switch logic.
+
+**Solution:** ✅ Fixed with dynamic action parsing:
+```javascript
+// Automatically parses: "switchToSimpleScene" → "simple"
+// Handles special cases: "switchToThreeScene" → "whiteboard"
+```
+
+#### ❌ `TypeError: Cannot read properties of undefined (reading 'domElement')`
+
+**Problem:** Scene setup functions trying to use disposed renderer objects.
+
+**Solution:** ✅ Fixed by ensuring proper object creation order:
+```javascript
+// Create renderer first, then controls
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+const controls = new OrbitControls(camera, renderer.domElement);
+```
+
+</div>
+
+---

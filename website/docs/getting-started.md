@@ -97,6 +97,8 @@ init();
 - Surface interaction system
 - Button and UI controls
 - Ray casting visualization
+- Scene switching with smooth transitions
+- Error-resistant scene loading
 
 ### 🎨 **Visual Feedback**
 - Cone cursors for each hand
@@ -296,6 +298,33 @@ console.log('HIGHLIGHT_COLOR:', HIGHLIGHT_COLOR);        // Selection color: 0xf
 ```
 
 **🎨 Make Handible uniquely yours!**
+
+</div>
+
+---
+
+## 🎬 Scene Switching
+
+<div className="scene-switching">
+
+**Seamlessly switch between different 3D environments:**
+
+```javascript
+// 🎮 Built-in scenes with UI panel controls
+// - Main Scene (Demo/Whiteboard): Full-featured demo environment
+// - Table Scene: Interactive table with chessboard and objects  
+// - Simple Scene: Minimalist environment for custom content
+
+// 🎛️ UI Panel automatically includes scene switching buttons
+// Right hand controls UI when panel is active
+// Pinch gesture triggers scene transitions with loading animation
+
+// 🔧 Scene switching is handled automatically by gesture controls
+// Each scene loads with proper cleanup and initialization
+// Loading system provides visual feedback during transitions
+```
+
+**✨ Smooth scene transitions with professional loading animations!**
 
 </div>
 
