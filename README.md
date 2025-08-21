@@ -39,7 +39,7 @@
   npm install handible
   ```
   
-  **[� Live Demo](handible.vercel.app)** • **[📖 Documentation](https://gust10.github.io/Handible/)** • **[⚡ Get Started](https://gust10.github.io/Handible/docs/getting-started)** • **[📦 npm Package](https://www.npmjs.com/package/handible)**
+  **[Live Demo](https://handible.vercel.app)** • **[📖 Documentation](https://gust10.github.io/Handible/)** • **[⚡ Get Started](https://gust10.github.io/Handible/docs/getting-started)** • **[📦 npm Package](https://www.npmjs.com/package/handible)**
   
 </div>
 
