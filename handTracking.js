@@ -424,7 +424,7 @@ export function predictWebcam(video, handLandmarker) {
       currentLandmarkSpheres.forEach((sphere) => (sphere.visible = true));
       currentHandConnections.forEach((capsule) => (capsule.visible = true));
       currentZArrow.visible = true;
-      currentLaser.visible = true;
+      // currentLaser.visible = true; // DISABLED: Pink raycast ray turned off
 
       // New: Quaternion from config rotation (computed once per hand for efficiency)
       const tiltQuat = new THREE.Quaternion().setFromEuler(handConfig.rotationOffset);
