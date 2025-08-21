@@ -29,8 +29,6 @@ async function init() {
   
   // Start progress simulation for initial load
   const progressPromise = sceneLoader.simulateProgress(3000);
-  
-  document.getElementById("ema-alpha-display").textContent = 0.35;
 
   // Small delay to let loading animation start
   await new Promise(resolve => setTimeout(resolve, 100));
