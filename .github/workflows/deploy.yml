@@ -1,4 +1,4 @@
-name: Deploy Both Websites to GitHub Pages
+name: Deploy Docusaurus to GitHub Pages
 
 on:
   push:
@@ -29,32 +29,15 @@ jobs:
         with:
           node-version: 18
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            website/package-lock.json
+          cache-dependency-path: website/package-lock.json
       
-      - name: Install main app dependencies
-        run: npm install
-      
-      - name: Build main app with Vite
-        run: npm run build
-      
-      - name: Install Docusaurus dependencies
+      - name: Install dependencies
         run: npm install
         working-directory: ./website
       
-      - name: Build Docusaurus site
+      - name: Build website
         run: npm run build
         working-directory: ./website
-      
-      - name: Create deployment directory
-        run: |
-          mkdir -p deploy
-          mkdir -p deploy/docs
-          # Copy built main app files to root (from dist folder)
-          cp -r dist/* deploy/
-          # Copy docs to /docs subdirectory
-          cp -r website/build/* deploy/docs/
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -62,7 +45,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./deploy
+          path: ./website/build
 
   deploy:
     environment:
