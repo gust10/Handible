@@ -13,7 +13,7 @@
   [![npm version](https://img.shields.io/npm/v/handible.svg?style=for-the-badge&logo=npm&color=ff6b6b)](https://www.npmjs.com/package/handible)
   [![MIT License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](./LICENSE)
   [![GitHub Stars](https://img.shields.io/github/stars/gust10/Handible.svg?style=for-the-badge&logo=github&color=4ecdc4)](https://github.com/gust10/Handible)
-  [![Live Demo](https://img.shields.io/badge/🚀-Live%20Demo-purple.svg?style=for-the-badge)](https://demo.handible.dev)
+  [![Live Demo](https://img.shields.io/badge/🚀-Live%20Demo-purple.svg?style=for-the-badge)](handible.vercel.app)
   
   [![Three.js](https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=three.js&logoColor=white)](https://threejs.org/)
   [![MediaPipe](https://img.shields.io/badge/MediaPipe-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://mediapipe.dev/)
@@ -39,7 +39,7 @@
   npm install handible
   ```
   
-  **[📖 Documentation](https://docs.handible.dev)** • **[⚡ Try Demo](https://demo.handible.dev)** • **[🚀 Get Started](https://docs.handible.dev/getting-started)**
+  **[� Live Demo](handible.vercel.app)** • **[📖 Documentation](https://gust10.github.io/Handible/)** • **[⚡ Get Started](https://gust10.github.io/Handible/docs/getting-started)** • **[📦 npm Package](https://www.npmjs.com/package/handible)**
   
 </div>
 
@@ -145,10 +145,10 @@ SurfaceInteractionSystem.registerSurface(surface, {
 
 | Section | Description |
 |---------|-------------|
-| **[🚀 Getting Started](https://docs.handible.dev/getting-started)** | Installation and basic setup |
-| **[💡 Core Concepts](https://docs.handible.dev/core-concepts)** | Understanding gestures and tracking |
-| **[📚 API Reference](https://docs.handible.dev/api-reference)** | Complete function documentation |
-| **[🎯 Advanced Features](https://docs.handible.dev/advanced-features)** | Surface systems and custom interactions |
+| **[🚀 Getting Started](https://gust10.github.io/Handible/docs/getting-started)** | Installation and basic setup |
+| **[💡 Core Concepts](https://gust10.github.io/Handible/docs/core-concepts)** | Understanding gestures and tracking |
+| **[📚 API Reference](https://gust10.github.io/Handible/docs/api-reference)** | Complete function documentation |
+| **[🎯 Advanced Features](https://gust10.github.io/Handible/docs/advanced-features)** | Surface systems and custom interactions |
 
 ## 🎯 Use Cases
 
@@ -181,7 +181,7 @@ We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md)
 
 <div align="center">
   
-  **[🐛 Report Bug](https://github.com/gust10/Handible/issues)** • **[💡 Request Feature](https://github.com/gust10/Handible/issues)** • **[💬 Discussions](https://github.com/gust10/Handible/discussions)**
+  **[🐛 Report Issues](https://github.com/gust10/Handible/issues)** • **[💡 Feature Requests](https://github.com/gust10/Handible/issues/new?template=feature_request.md)** • **[💬 Discussions](https://github.com/gust10/Handible/discussions)** • **[🔧 Contributing](./CONTRIBUTING.md)**
   
 </div>
 
@@ -216,11 +216,11 @@ MIT License - see the [LICENSE](./LICENSE) file for details.
 
 <div align="center">
   
-  **Made with ❤️ by [Hyunsung Shin](https://github.com/gust10)**
+  **Made with ❤️ by [Hyunsung Shin (gust10)](https://github.com/gust10)**
   
   *Transform your ideas into gestures*
   
-  ⭐ **Star this repo if you find it useful!** ⭐
+  **[⭐ Star on GitHub](https://github.com/gust10/Handible)** • **[📦 View on npm](https://www.npmjs.com/package/handible)** • **[🌐 Visit Homepage](https://gust10.github.io/Handible/)**
   
 </div>
 
