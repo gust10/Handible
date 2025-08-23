@@ -31,6 +31,38 @@
 
 ---
 
+<div align="center">
+
+## 🎬 **Live Demo in Action**
+
+<table width="100%">
+  <tr>
+    <td align="center" width="33.33%">
+      <img src="./assets/demo_1.gif" alt="Handible Demo 1 - Basic Hand Tracking" width="100%" style="max-width: 350px;"/>
+      <br/>
+      <b>👋 Hand Detection</b>
+      <br/>
+      <i>Real-time finger tracking</i>
+    </td>
+    <td align="center" width="33.33%">
+      <img src="./assets/demo_3.gif" alt="Handible Demo 3 - Surface Interaction" width="100%" style="max-width: 350px;"/>
+      <br/>
+      <b>🎯 3D Object Control</b>
+      <br/>
+      <i>Gesture-based manipulation</i>
+    </td>
+    <td align="center" width="33.33%">
+      <img src="./assets/demo_2.gif" alt="Handible Demo 2 - 3D Interaction" width="100%" style="max-width: 350px;"/>
+      <br/>
+      <b>🎨 Surface Interaction</b>
+      <br/>
+      <i>Virtual UI controls</i>
+    </td>
+  </tr>
+</table>
+
+</div>
+
 ## 🎬 Demo
 
 <div align="center">
