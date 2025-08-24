@@ -37,6 +37,24 @@ function HomepageHeader() {
             <span className={styles.highlight}> real-time tracking</span>, and 
             <span className={styles.highlight}> seamless Three.js integration</span>.
           </p>
+
+          {/* Demo Section */}
+          <div className={styles.heroDemoSection}>
+            <div className={styles.demoGrid}>
+              <div className={styles.demoCard}>
+                <img src="static/img/demo_1.gif" alt="Hand Detection Demo" className={styles.heroGif} />
+                <div className={styles.demoLabel}>👋 Hand Detection</div>
+              </div>
+              <div className={styles.demoCard}>
+                <img src="static/img/demo_3.gif" alt="3D Object Control Demo" className={styles.heroGif} />
+                <div className={styles.demoLabel}>🎯 3D Object Control</div>
+              </div>
+              <div className={styles.demoCard}>
+                <img src="static/img/demo_2.gif" alt="Surface Interaction Demo" className={styles.heroGif} />
+                <div className={styles.demoLabel}>🎨 Surface Interaction</div>
+              </div>
+            </div>
+          </div>
           
           <div className={styles.statsContainer}>
             <div className={styles.stat}>

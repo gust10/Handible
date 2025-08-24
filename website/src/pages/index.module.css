@@ -342,3 +342,78 @@
     font-size: 2rem !important;
   }
 }
+
+/* Hero Demo Section Styles */
+.heroDemoSection {
+  margin: 3rem 0 2rem 0;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.demoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.demoCard {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(15px);
+  border-radius: 16px;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.demoCard:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.heroGif {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
+}
+
+.demoCard:hover .heroGif {
+  transform: scale(1.05);
+}
+
+.demoLabel {
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Mobile responsiveness for demo section */
+@media (max-width: 768px) {
+  .heroDemoSection {
+    margin: 2rem 0 1rem 0;
+    padding: 1.5rem;
+  }
+  
+  .demoGrid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .demoCard {
+    padding: 0.8rem;
+  }
+  
+  .demoLabel {
+    font-size: 0.9rem;
+  }
+}
