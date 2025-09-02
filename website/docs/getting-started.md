@@ -15,16 +15,16 @@ description: "Jump into hand tracking magic with Handible in minutes"
 <div className="api-section">
 
 ```bash
-# 🎯 Get Handible in your project (coming soon to npm)
+# 🎯 Install Handible from npm
 npm install handible
 
 # 🛠️ Or clone the repository for development
-git clone https://github.com/your-repo/handible.git
+git clone https://github.com/gust10/Handible.git
 ```
 
 **Dependencies you'll need:**
 - `three` - 3D graphics library
-- `@mediapipe/hands` - Hand tracking AI
+- `@mediapipe/tasks-vision` - Hand tracking AI (peer dependency)
 
 </div>
 
